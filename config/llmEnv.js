@@ -146,7 +146,7 @@ function getLlmPublicStatus() {
         free: false,
         user_install_required: false,
         description:
-          "Облачная модель на сервере Charitor. Пользователям ключ не нужен.",
+          "Встроенные модели Qwen на сервере Charitor. Пользователям ключ не нужен.",
       };
     }
   }
@@ -286,12 +286,55 @@ async function fetchChutesProxyPresets() {
   }));
 }
 
+const BUILTIN_QWEN_MODELS_FALLBACK = [
+  "Qwen/Qwen3-32B-TEE",
+  "Qwen/Qwen3.5-397B-A17B-TEE",
+  "Qwen/Qwen3.6-27B-TEE",
+  "Qwen/Qwen2.5-Coder-32B-Instruct-TEE",
+  "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
+  "Qwen/Qwen3-235B-A22B-Thinking-2507",
+];
+
+function isQwenModelId(modelId) {
+  return /qwen/i.test(String(modelId || "").trim());
+}
+
+function toModelListEntry(id) {
+  const value = String(id || "").trim();
+  return value ? { id: value, name: value } : null;
+}
+
+/** Только Qwen — для вкладки «Встроенная»; остальные модели — во вкладке «Прокси». */
+function filterBuiltinLlmModels(models) {
+  return (Array.isArray(models) ? models : [])
+    .map((item) => {
+      if (typeof item === "string") return toModelListEntry(item);
+      const id = String(item?.id || item?.name || "").trim();
+      return id ? { id, name: String(item?.name || id).trim() } : null;
+    })
+    .filter((item) => item && isQwenModelId(item.id));
+}
+
+function getBuiltinQwenFallbackModels() {
+  const defaultModel = String(
+    process.env.LLM_MODEL || getOllamaDefaultModel() || "",
+  ).trim();
+  const ids = [
+    ...(isQwenModelId(defaultModel) ? [defaultModel] : []),
+    ...BUILTIN_QWEN_MODELS_FALLBACK,
+  ];
+  const unique = [...new Set(ids.map((id) => String(id).trim()).filter(isQwenModelId))];
+  return unique.map(toModelListEntry).filter(Boolean);
+}
+
 async function fetchAvailableLlmModels() {
   if (getBuiltinLlmMode() === "ollama") {
     const health = await getOllamaHealth();
-    return health.models || [];
+    const qwen = filterBuiltinLlmModels(health.models || []);
+    return qwen.length ? qwen : getBuiltinQwenFallbackModels();
   }
-  return fetchCloudLlmModels();
+  const qwen = filterBuiltinLlmModels(await fetchCloudLlmModels());
+  return qwen.length ? qwen : getBuiltinQwenFallbackModels();
 }
 
 async function logLlmModeAtStartup() {

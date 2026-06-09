@@ -188,7 +188,7 @@
       <div class="api-settings-scroll">
         <div class="api-settings-panels">
           <section class="api-settings-panel active" data-api-panel="builtin" aria-labelledby="apiPanelBuiltinTitle">
-            <h3 id="apiPanelBuiltinTitle" class="api-panel-title">Встроенная (бесплатно)</h3>
+            <h3 id="apiPanelBuiltinTitle" class="api-panel-title">Встроенная (Qwen)</h3>
             <p class="api-panel-desc" id="builtinPanelDesc">Загрузка…</p>
             <button type="button" class="secondary-btn api-panel-action" id="useBuiltinModelBtn">Использовать встроенную</button>
             <div class="llm-models-section">
@@ -214,8 +214,8 @@
             </div>
             <div class="chutes-proxy-catalog" id="chutesProxyCatalog">
               <p class="api-field-hint api-field-hint--block">
-                Модели Chutes (как раньше во встроенной). Добавьте в прокси и вставьте ключ
-                <code>cpk_...</code> при редактировании.
+                Другие модели Chutes (Gemma, GLM, Kimi и т.д.) — только здесь, со своим ключом
+                <code>cpk_...</code>.
               </p>
               <div class="chutes-proxy-catalog-actions">
                 <button type="button" class="api-mini-btn api-mini-btn--primary" id="addAllChutesProxiesBtn">
@@ -1559,8 +1559,7 @@
           : model
         : "";
       if (serverLlmStatus.mode === "cloud") {
-        const provider = serverLlmStatus.provider || "cloud";
-        return shortModel ? `${provider}: ${shortModel}` : provider;
+        return shortModel ? `Qwen · ${shortModel}` : "Qwen";
       }
       return shortModel ? `бесплатно · ${shortModel}` : "бесплатно · Ollama";
     }
@@ -1573,7 +1572,7 @@
         if (!serverLlmStatus.ready) {
           return "Облачная встроенная модель не настроена на сервере (LLM_API_KEY в .env).";
         }
-        return "Облачная модель Charitor — ключ только на сервере, пользователям ставить ничего не нужно.";
+        return "Встроенные модели Qwen на сервере Charitor — ключ только на сервере, пользователям ничего настраивать не нужно.";
       }
       if (!serverLlmStatus.ready) {
         return "Ollama на сервере Charitor сейчас недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b";
@@ -1655,18 +1654,28 @@
         if (!response.ok) {
           throw new Error(data.message || "Не удалось загрузить модели");
         }
-        llmModelsList = Array.isArray(data.models) ? data.models : [];
-        if (!builtinSelectedModel && data.default_model && serverLlmStatus.ready) {
-          writeBuiltinSelectedModel(data.default_model);
+        const rawModels = Array.isArray(data.models) ? data.models : [];
+        llmModelsList = rawModels.filter((item) =>
+          /qwen/i.test(String(item?.id || item?.name || "")),
+        );
+        const defaultModel = String(data.default_model || "").trim();
+        if (
+          builtinSelectedModel &&
+          !/qwen/i.test(builtinSelectedModel)
+        ) {
+          writeBuiltinSelectedModel(
+            /qwen/i.test(defaultModel) ? defaultModel : "",
+          );
+        }
+        if (!builtinSelectedModel && /qwen/i.test(defaultModel) && serverLlmStatus.ready) {
+          writeBuiltinSelectedModel(defaultModel);
         }
         if (llmModelsHint) {
           llmModelsHint.textContent = llmModelsList.length
-            ? serverLlmStatus.mode === "ollama"
-              ? "Модели на сервере Charitor — нажмите, чтобы выбрать"
-              : "Нажмите на модель, чтобы выбрать"
+            ? "Модели Qwen — нажмите, чтобы выбрать"
             : serverLlmStatus.mode === "ollama" && !serverLlmStatus.ready
               ? "Ollama на сервере недоступна — администратор должен запустить ollama serve"
-              : "Список пуст — введите модель вручную в поле прокси";
+              : "Список Qwen недоступен — попробуйте позже или вкладку «Прокси»";
         }
       } catch (error) {
         llmModelsList = [];
@@ -1726,7 +1735,7 @@
           throw new Error(
             serverLlmStatus.mode === "cloud"
               ? "Встроенная облачная модель не настроена на сервере"
-              : "Бесплатная встроенная модель недоступна — попробуйте позже или укажите свой API в настройках прокси",
+              : "Встроенная Qwen недоступна — попробуйте позже или вкладку «Прокси» со своим API",
           );
         }
         return;
@@ -1771,7 +1780,7 @@
         showToast(
           serverLlmStatus.mode === "cloud"
             ? "Встроенная облачная модель не настроена на сервере. Можно указать свой API в настройках."
-            : "Бесплатная встроенная модель недоступна. Укажите свой API в «Настройки API» → Прокси или попробуйте позже.",
+            : "Встроенная Qwen недоступна. Попробуйте позже или вкладку «Прокси» со своим API.",
         );
       }
     }

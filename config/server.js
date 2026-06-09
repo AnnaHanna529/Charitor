@@ -578,7 +578,7 @@ function rejectIfBuiltinLlmNotReady(res, bodyProxy) {
 
   res.status(503).json({
     message:
-      "Бесплатная встроенная модель сейчас недоступна. Попробуйте позже или укажите свой API в «Настройки API» → Прокси.",
+      "Встроенная Qwen сейчас недоступна. Попробуйте позже или вкладку «Прокси» со своим API.",
     admin_hint:
       "На сервере с сайтом: установите Ollama, выполните ollama serve и ollama pull qwen2.5:3b",
   });
