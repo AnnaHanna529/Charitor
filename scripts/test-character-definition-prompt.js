@@ -3,6 +3,7 @@ const {
   resolveCharacterDefinition,
   buildBotProfileFromChat,
 } = require("../config/aiChat");
+const { CHAR_NAME, USER_NAME } = require("./test-fixtures");
 
 let failed = 0;
 
@@ -12,13 +13,13 @@ function assert(name, ok) {
 }
 
 const metadata = {
-  scenario: "Бал в королевском дворце.",
-  roleplayRules: "Гордая, но ранимая.",
-  memoryFacts: "Знает Байхэ с детства.",
-  characterRules: "Не упоминать войну.",
-  characterType: "female",
-  exampleDialogues: '"Как смеешь!" — воскликнула она.',
-  tags: "фэнтези, роман",
+  scenario: "Первая встреча в комнате.",
+  roleplayRules: "Спокойный, вежливый тон.",
+  memoryFacts: `Ранее знаком с ${USER_NAME}.`,
+  characterRules: "Не выходить из роли.",
+  characterType: "neutral",
+  exampleDialogues: '"Подожди." — сказал он.',
+  tags: "тест",
 };
 
 const systemPrompt = [
@@ -26,27 +27,27 @@ const systemPrompt = [
   JSON.stringify(metadata),
   "[/CHARITOR_PROMPT_V1]",
   "",
-  "Ты — AI-персонаж \"Аурелия\".",
+  `Ты — AI-персонаж "${CHAR_NAME}".`,
   "",
   "Биография персонажа:",
-  "Принцесса королевства Элдор.",
+  "Краткое описание для теста.",
   "",
   "Сценарий:",
   metadata.scenario,
 ].join("\n");
 
 const botProfile = {
-  full_description: "<p>Наследница престола, любит музыку.</p>",
-  short_description: "Принцесса Элдор",
-  tags: "фэнтези, двор",
-  greeting_message: "*Она оборачивается.* \"Ты здесь?\"",
+  full_description: "<p>Описание персонажа для unit-теста.</p>",
+  short_description: "Тестовый персонаж",
+  tags: "тест",
+  greeting_message: '*Кивает.* "Здравствуй."',
 };
 
 const def = resolveCharacterDefinition(systemPrompt, botProfile);
-assert("biography from full_description", def.biography.includes("Наследница престола"));
-assert("scenario from metadata", def.scenario.includes("Бал в королевском"));
-assert("personality from metadata", def.personality.includes("Гордая"));
-assert("greeting from profile", def.greetingMessage.includes("Ты здесь"));
+assert("biography from full_description", def.biography.includes("Описание персонажа"));
+assert("scenario from metadata", def.scenario.includes("Первая встреча"));
+assert("personality from metadata", def.personality.includes("Спокойный"));
+assert("greeting from profile", def.greetingMessage.includes("Здравствуй"));
 
 const chatProfile = buildBotProfileFromChat({
   bot_full_description: botProfile.full_description,
@@ -54,18 +55,18 @@ const chatProfile = buildBotProfileFromChat({
   bot_tags: botProfile.tags,
   bot_greeting_message: botProfile.greeting_message,
 });
-assert("chat profile maps db fields", chatProfile.full_description.includes("Наследница"));
+assert("chat profile maps db fields", chatProfile.full_description.includes("Описание персонажа"));
 
-const prompt = buildSystemPrompt(systemPrompt, "", "Аурелия", "Байхэ", botProfile);
+const prompt = buildSystemPrompt(systemPrompt, "", CHAR_NAME, USER_NAME, botProfile);
 assert("prompt has character definition block", prompt.includes("=== ОПРЕДЕЛЕНИЕ ПЕРСОНАЖА ==="));
-assert("prompt includes biography", prompt.includes("Наследница престола"));
-assert("prompt includes personality", prompt.includes("Гордая, но ранимая"));
-assert("prompt includes scenario", prompt.includes("Бал в королевском дворце"));
-assert("prompt includes memory facts", prompt.includes("Знает Байхэ с детства"));
-assert("prompt includes character rules", prompt.includes("Не упоминать войну"));
-assert("prompt includes example dialogues", prompt.includes("Как смеешь"));
-assert("prompt includes greeting", prompt.includes("Ты здесь"));
-assert("prompt substitutes user token", prompt.includes("Байхэ"));
+assert("prompt includes biography", prompt.includes("Описание персонажа для unit-теста"));
+assert("prompt includes personality", prompt.includes("Спокойный, вежливый тон"));
+assert("prompt includes scenario", prompt.includes("Первая встреча в комнате"));
+assert("prompt includes memory facts", prompt.includes(`Ранее знаком с ${USER_NAME}`));
+assert("prompt includes character rules", prompt.includes("Не выходить из роли"));
+assert("prompt includes example dialogues", prompt.includes("Подожди"));
+assert("prompt includes greeting", prompt.includes("Здравствуй"));
+assert("prompt substitutes user token", prompt.includes(USER_NAME));
 assert(
   "character block before style rules",
   prompt.indexOf("=== ОПРЕДЕЛЕНИЕ ПЕРСОНАЖА ===") <

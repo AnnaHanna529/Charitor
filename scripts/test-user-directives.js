@@ -3,6 +3,7 @@ const {
   prepareHistoryForLlm,
   formatUserDirectivesForSystemPrompt,
 } = require("../js/userMessageDirectives");
+const { USER_NAME } = require("./test-fixtures");
 
 let failed = 0;
 
@@ -12,12 +13,12 @@ function assert(name, ok) {
 }
 
 const sample =
-  '"Хорошо. Но ты пропускаешь банкет" сказала Байхэ, подходя к ней с шашлыком. [Не говори за {{user}}]';
+  `"Хорошо." — сказала ${USER_NAME}, входя в комнату. [Не говори за {{user}}]`;
 
 const parsed = parseUserMessageDirectives(sample);
 assert("extracts directive", parsed.directives[0] === "Не говори за {{user}}");
 assert("removes brackets from dialogue", !parsed.dialogue.includes("[Не говори"));
-assert("keeps roleplay text", parsed.dialogue.includes("Байхэ"));
+assert("keeps roleplay text", parsed.dialogue.includes(USER_NAME));
 
 const onlyDirective = parseUserMessageDirectives("[Не описывай мои действия]");
 assert("directive-only message", onlyDirective.directives.length === 1);

@@ -1,4 +1,5 @@
 const { substituteChatTokens, resolveUserDisplayName } = require("../js/chatTokens");
+const { CHAR_NAME, USER_NAME } = require("./test-fixtures");
 
 let failed = 0;
 
@@ -9,7 +10,7 @@ function assert(name, ok) {
 
 assert(
   "persona name wins",
-  resolveUserDisplayName({ personaName: "Байхэ", username: "Anna" }) === "Байхэ",
+  resolveUserDisplayName({ personaName: USER_NAME, username: "Anna" }) === USER_NAME,
 );
 assert(
   "fallback username",
@@ -17,20 +18,20 @@ assert(
 );
 assert(
   "replace {{user}}",
-  substituteChatTokens("— {{user}}?", { personaName: "Байхэ" }) === "— Байхэ?",
+  substituteChatTokens("— {{user}}?", { personaName: USER_NAME }) === `— ${USER_NAME}?`,
 );
 assert(
   "case insensitive",
-  substituteChatTokens("{{USER}}", { personaName: "Байхэ" }) === "Байхэ",
+  substituteChatTokens("{{USER}}", { personaName: USER_NAME }) === USER_NAME,
 );
 assert(
   "replace {{char}}",
-  substituteChatTokens("{{char}} улыбнулась", { charName: "Аурелия" }) ===
-    "Аурелия улыбнулась",
+  substituteChatTokens("{{char}} улыбнулась", { charName: CHAR_NAME }) ===
+    `${CHAR_NAME} улыбнулась`,
 );
 assert(
   "empty stays",
-  substituteChatTokens("Привет", { personaName: "Байхэ" }) === "Привет",
+  substituteChatTokens("Привет", { personaName: USER_NAME }) === "Привет",
 );
 
 if (failed > 0) {

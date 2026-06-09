@@ -1,3 +1,10 @@
+.docs-back-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+}
+
 .docs-hub-nav {
   box-sizing: border-box;
   max-width: 960px;

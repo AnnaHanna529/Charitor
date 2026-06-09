@@ -14,9 +14,9 @@ const {
 const {
   hasUserAgencyViolation,
   wouldViolateUserAgency,
-  buildPreGenerationUserAgencyReminder,
   buildPreGenerationUserAgencyUserMessage,
 } = require("../config/roleplayFormatRules");
+const { CHAR_NAME, USER_NAME } = require("./test-fixtures");
 
 let failed = 0;
 
@@ -26,25 +26,25 @@ function assert(name, ok) {
 }
 
 const badUserAgency =
-  '*Байхэ останавливается рядом.*\n\n"Я всегда была любопытной."';
+  `*${USER_NAME} останавливается рядом.*\n\n"Я всегда был любопытным."`;
 assert(
   "bad user-agency reply fails isReplyAcceptable",
   !isReplyAcceptable(
     finalizeBotReplyText(badUserAgency),
-    "Аурелия",
-    "Байхэ",
+    CHAR_NAME,
+    USER_NAME,
     [{ role: "user", content: "Привет." }],
     [],
   ),
 );
 
-const fallback = finalizeBotReplyText(buildHardSafeFallbackReply("Аурелия", [], 0));
+const fallback = finalizeBotReplyText(buildHardSafeFallbackReply(CHAR_NAME, [], 0));
 assert(
   "fallback reply passes isReplyAcceptable",
   isReplyAcceptable(
     fallback,
-    "Аурелия",
-    "Байхэ",
+    CHAR_NAME,
+    USER_NAME,
     [{ role: "user", content: "Привет." }],
     [],
   ),
@@ -77,24 +77,24 @@ assert(
 );
 
 assert(
-  "hasUserAgencyViolation catches screenshot-like reply",
-  hasUserAgencyViolation(badUserAgency, "Байхэ"),
+  "hasUserAgencyViolation catches user-agency reply",
+  hasUserAgencyViolation(badUserAgency, USER_NAME),
 );
 
 assert(
-  "wouldViolateUserAgency catches early *Байхэ block",
-  wouldViolateUserAgency("*Байхэ о", "Байхэ"),
+  "wouldViolateUserAgency catches early user block",
+  wouldViolateUserAgency(`*${USER_NAME} о`, USER_NAME),
 );
 
 assert(
   "wouldViolateUserAgency allows bot addressing player",
-  !wouldViolateUserAgency('"Байхэ, что ты имеешь в виду?"', "Байхэ"),
+  !wouldViolateUserAgency(`"${USER_NAME}, что ты имеешь в виду?"`, USER_NAME),
 );
 
 assert(
   "pre-generation user gate mentions player name",
-  buildPreGenerationUserAgencyUserMessage("Байхэ", "Аурелия").includes("Байхэ") &&
-    buildPreGenerationUserAgencyUserMessage("Байхэ", "Аурелия").includes("✗"),
+  buildPreGenerationUserAgencyUserMessage(USER_NAME, CHAR_NAME).includes(USER_NAME) &&
+    buildPreGenerationUserAgencyUserMessage(USER_NAME, CHAR_NAME).includes("✗"),
 );
 
 assert(
@@ -121,32 +121,23 @@ assert(
 );
 
 const midWordHead =
-  "Аурелия вытянула руку и протянула её Байхэ. Она почувствовала незнач";
-const midWordTail = "ительное облегчение, когда та приняла шашлык.";
+  "Она вытянула руку и почувствовала незнач";
+const midWordTail = "ительное облегчение, когда тот принял предмет.";
 const midWordMerged = mergeMessageContinuation(midWordHead, midWordTail);
 assert(
   "continue merges mid-word without paragraph break",
   midWordMerged.includes("незначительное") && !midWordMerged.includes("незнач\n\n"),
 );
 
-const repeatHead =
-  "Аурелия прокрутила глаза.\n\nОна почувствовала незнач";
+const repeatHead = "Она прокрутила глаза.\n\nОна почувствовала незнач";
 const repeatTail =
-  "Аурелия прокрутила глаза.\n\nОна почувствовала незначительное облегчение.";
+  "Она прокрутила глаза.\n\nОна почувствовала незначительное облегчение.";
 const repeatMerged = mergeMessageContinuation(repeatHead, repeatTail);
 assert(
   "continue strips repeated paragraph from tail",
-  !repeatMerged.includes("Аурелия прокрутила глаза.\n\nАурелия прокрутила глаза."),
+  !repeatMerged.includes("Она прокрутила глаза.\n\nОна прокрутила глаза."),
 );
 
-const duplicateSentenceHead =
-  'Аурелия усмехнулась. "Ты знаешь, что такое вкусные блюда?"\n\nБайхэ стиснула кулаки и прищурилась, стараясь поддерживать игру. Она вд';
-const duplicateSentenceTail =
-  "Байхэ стиснула кулаки и прищурилась, стараясь поддерживать игру. Она вдруг замерла и посмотрела на Аурелию.";
-const duplicateSentenceMerged = mergeMessageContinuation(
-  duplicateSentenceHead,
-  duplicateSentenceTail,
-);
 assert(
   "continue strips duplicate paragraphs anywhere in tail",
   (() => {

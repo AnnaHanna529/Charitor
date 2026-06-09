@@ -2591,12 +2591,36 @@
         const idx = messageRows.findIndex((item) => Number(item.id) === messageId);
         if (idx !== -1) {
           messageRows[idx] = mergeMessageRowFromPutUpdate(messageRows[idx], data.updated);
+          const removedId = Number(data.removed_filter_reply_id);
+          if (Number.isFinite(removedId) && removedId > 0) {
+            const dropAt = messageRows.findIndex((item) => Number(item.id) === removedId);
+            if (dropAt !== -1) messageRows.splice(dropAt, 1);
+          }
+          if (data.reply) {
+            const nextIdx = idx + 1;
+            if (
+              nextIdx < messageRows.length &&
+              String(messageRows[nextIdx].sender_type || "").trim().toLowerCase() === "bot"
+            ) {
+              messageRows[nextIdx] = {
+                ...messageRows[nextIdx],
+                ...data.reply,
+              };
+            } else {
+              messageRows.splice(nextIdx, 0, data.reply);
+            }
+          }
         }
         editingMessageId = null;
         const stack = row.querySelector(".message-stack");
         if (stack) stack.classList.remove("message-stack--editing");
         rerenderMessages();
-        showToast("Сообщение обновлено");
+        if (data.content_filtered || Number(data.updated?.policy_violation) === 1) {
+          const base = (data.message || "Контент отфильтрован по правилам площадки.").trim();
+          showToast(base + policyFilterReasonSuffix(data.filter_reason));
+        } else {
+          showToast("Сообщение обновлено");
+        }
       } catch (error) {
         showToast(error.message || "Ошибка редактирования");
       }

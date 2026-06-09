@@ -18,11 +18,10 @@ const {
   buildSystemPrompt,
 } = require("../config/aiChat");
 
-const TEST_USER_MESSAGE =
-  "Привет! Расскажи, что ты чувствуешь сейчас, и ответь коротко, но по правилам формата.";
+const { CHAR_NAME, USER_NAME, BOT_SYSTEM_PROMPT } = require("./test-fixtures");
 
-const BOT_NAME = "Алекс";
-const BOT_PROMPT = "Сценарий:\nВечер в тихой кафе. Алекс — спокойный собеседник с лёгкой иронией.";
+const TEST_USER_MESSAGE =
+  "Привет! Ответь коротко, соблюдая правила формата (действия в *звёздочках*, речь в \"лапках\").";
 
 function printFormatReport(label, text) {
   const structured = finalizeBotReplyText(text);
@@ -52,10 +51,10 @@ async function testBuiltin() {
 
   const runtime = getBuiltinLlmRuntimeConfig();
   const reply = await generateBotReply({
-    botName: BOT_NAME,
-    botSystemPrompt: BOT_PROMPT,
+    botName: CHAR_NAME,
+    botSystemPrompt: BOT_SYSTEM_PROMPT,
     personaPrompt: "",
-    personaName: "Гость",
+    personaName: USER_NAME,
     history: [{ role: "user", content: TEST_USER_MESSAGE }],
     runtimeConfig: runtime,
   });
@@ -80,10 +79,10 @@ async function testProxyIfConfigured() {
   };
 
   const reply = await generateBotReply({
-    botName: BOT_NAME,
-    botSystemPrompt: BOT_PROMPT,
+    botName: CHAR_NAME,
+    botSystemPrompt: BOT_SYSTEM_PROMPT,
     personaPrompt: "",
-    personaName: "Гость",
+    personaName: USER_NAME,
     history: [{ role: "user", content: TEST_USER_MESSAGE }],
     runtimeConfig: runtime,
   });
@@ -95,7 +94,7 @@ async function testProxyIfConfigured() {
 async function main() {
   console.log(
     "Промпт содержит правила формата:",
-    buildSystemPrompt(BOT_PROMPT, "", BOT_NAME).includes("лапки"),
+    buildSystemPrompt(BOT_SYSTEM_PROMPT, "", CHAR_NAME).includes("лапки"),
   );
   await testBuiltin();
   await testProxyIfConfigured();

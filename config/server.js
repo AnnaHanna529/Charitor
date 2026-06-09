@@ -2506,32 +2506,95 @@ app.put("/chat/:chatId/message/:messageId", async (req, res) => {
       });
     }
 
-    if (messageRows[0].sender_type === "user" && policyHit) {
-      return res.status(400).json({
-        message:
-          "Текст не проходит правила площадки (18+, жестокость или нецензурная лексика). Измените формулировку.",
-      });
-    }
-
     let updated;
+    let contentFiltered = false;
+    let filterReason = null;
+    let filterReply = null;
+    let removedFilterReplyId = null;
 
     if (messageRows[0].sender_type === "user") {
+      const policyViolationFlag = policyHit ? 1 : 0;
       await dbQuery(
         `
           UPDATE messages
-          SET content = ?, policy_violation = 0, content_variants = NULL
+          SET content = ?, policy_violation = ?, content_variants = NULL
           WHERE id = ? AND chat_id = ?
         `,
-        [encryptMessageContentForDb(normalizedText), messageId, chatId],
+        [
+          encryptMessageContentForDb(normalizedText),
+          policyViolationFlag,
+          messageId,
+          chatId,
+        ],
       );
       updated = {
         id: Number(messageId),
         chat_id: Number(chatId),
         sender_type: "user",
         content: normalizedText,
-        policy_violation: 0,
+        policy_violation: policyViolationFlag,
       };
-    } else {
+
+      const nextRows = await dbQuery(
+        `
+          SELECT id, sender_type, content
+          FROM messages
+          WHERE chat_id = ? AND id > ?
+          ORDER BY id ASC
+          LIMIT 1
+        `,
+        [chatId, messageId],
+      );
+      const nextMsg = nextRows[0] || null;
+      const nextIsBot = nextMsg && nextMsg.sender_type === "bot";
+      const nextPlain = nextIsBot
+        ? String(decryptMessageContentFromDb(nextMsg.content) || "").trim()
+        : "";
+      const nextIsFilterBot =
+        nextIsBot && nextPlain === FILTERED_BOT_MESSAGE_PLACEHOLDER;
+
+      if (policyHit) {
+        contentFiltered = true;
+        filterReason = policyHit.kind;
+        const encFilter = encryptMessageContentForDb(FILTERED_BOT_MESSAGE_PLACEHOLDER);
+        if (nextIsBot) {
+          await dbQuery(
+            `
+              UPDATE messages
+              SET content = ?, content_variants = NULL
+              WHERE id = ? AND chat_id = ?
+            `,
+            [encFilter, nextMsg.id, chatId],
+          );
+          filterReply = {
+            id: Number(nextMsg.id),
+            chat_id: Number(chatId),
+            sender_type: "bot",
+            content: FILTERED_BOT_MESSAGE_PLACEHOLDER,
+          };
+        } else {
+          const insertResult = await dbQuery(
+            `
+              INSERT INTO messages (chat_id, sender_type, content, created_at)
+              VALUES (?, 'bot', ?, NOW())
+            `,
+            [chatId, encFilter],
+          );
+          filterReply = {
+            id: insertResult.insertId,
+            chat_id: Number(chatId),
+            sender_type: "bot",
+            content: FILTERED_BOT_MESSAGE_PLACEHOLDER,
+          };
+        }
+      } else if (nextIsFilterBot) {
+        await dbQuery("DELETE FROM messages WHERE id = ? AND chat_id = ?", [
+          nextMsg.id,
+          chatId,
+        ]);
+        removedFilterReplyId = Number(nextMsg.id);
+      }
+    } else if (messageRows[0].sender_type === "bot") {
       let encVariants = null;
       let botVariantIndex = null;
       let botVariantsOut = null;
@@ -2571,10 +2634,22 @@ app.put("/chat/:chatId/message/:messageId", async (req, res) => {
 
     await dbQuery("UPDATE chats SET updated_at = NOW() WHERE id = ?", [chatId]);
 
-    return res.json({
-      message: "Сообщение обновлено ✅",
+    const payload = {
+      message: contentFiltered
+        ? "Контент отфильтрован по правилам площадки"
+        : "Сообщение обновлено ✅",
       updated,
-    });
+    };
+    if (contentFiltered) {
+      payload.content_filtered = true;
+      payload.filter_reason = filterReason;
+    }
+    if (filterReply) payload.reply = filterReply;
+    if (removedFilterReplyId != null) {
+      payload.removed_filter_reply_id = removedFilterReplyId;
+    }
+
+    return res.json(payload);
   } catch (error) {
     return res.status(500).json({ message: "Ошибка редактирования сообщения" });
   }

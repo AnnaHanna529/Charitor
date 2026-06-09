@@ -1,4 +1,7 @@
 .env
+.env.railway
+.env.railway.source
+backup_railway.sql
 .messages-content.key
 config/secrets/llm-api-key.txt
 node_modules/
