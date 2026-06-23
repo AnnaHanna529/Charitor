@@ -295,10 +295,38 @@ function decryptMessageRowsForApi(rows) {
   });
 }
 
+function isBotSenderType(senderType) {
+  return String(senderType || "").trim().toLowerCase() === "bot";
+}
+
+/** Подставляет greeting_message, если первое сообщение бота пустое или не расшифровалось. */
+function hydrateBotGreetingMessages(messages, bot) {
+  if (!Array.isArray(messages) || !bot) return messages;
+  const greeting = String(bot.greeting_message || "").trim();
+  if (!greeting) return messages;
+
+  const firstBotIdx = messages.findIndex((row) => isBotSenderType(row?.sender_type));
+  if (firstBotIdx < 0) return messages;
+
+  const row = messages[firstBotIdx];
+  const content = String(row?.content || "").trim();
+  if (content && !row._decryptFailed) return messages;
+
+  const copy = messages.slice();
+  copy[firstBotIdx] = {
+    ...row,
+    content: greeting,
+    _decryptFailed: false,
+    _hydratedFromGreeting: true,
+  };
+  return copy;
+}
+
 module.exports = {
   encryptMessageContentForDb,
   decryptMessageContentFromDb,
   decryptMessageRowsForApi,
+  hydrateBotGreetingMessages,
   isCiphertext,
   logKeyConfiguration,
 };

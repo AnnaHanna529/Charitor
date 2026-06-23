@@ -575,13 +575,19 @@
     const BOT_STREAM_FOOTER_PLACEHOLDER = `<div class="message-bubble-footer message-bubble-footer--placeholder" aria-hidden="true"><div class="message-actions message-actions--footer message-actions--placeholder"><span class="message-footer-slot"></span><span class="message-footer-slot"></span><span class="message-footer-slot"></span><span class="message-footer-slot"></span></div></div>`;
 
     /** Единый HTML-формат (br) — одинаковый при стриме и после завершения. */
-    function formatBotMessageHtml(text) {
+    function formatBotMessageHtml(text, { skipStructure = false } = {}) {
       const normalized = normalizeChatMessageText(text);
       if (!normalized) return "";
 
       let source = normalized;
-      if (typeof structureRoleplayParagraphs === "function") {
-        source = structureRoleplayParagraphs(normalized);
+      if (
+        !skipStructure &&
+        typeof structureRoleplayParagraphs === "function"
+      ) {
+        const structured = structureRoleplayParagraphs(normalized);
+        if (String(structured || "").trim()) {
+          source = structured;
+        }
       }
 
       const withEmphasis = escapeHtml(source).replace(
@@ -594,7 +600,9 @@
         .map((block) => block.trim())
         .filter(Boolean);
 
-      if (!paragraphs.length) return "";
+      if (!paragraphs.length) {
+        return escapeHtml(normalized).replace(/\n/g, "<br>");
+      }
       if (paragraphs.length === 1) {
         return paragraphs[0].replace(/\n/g, "<br>");
       }
@@ -633,11 +641,11 @@
       return body;
     }
 
-    function setBotBubbleContent(bubble, text) {
+    function setBotBubbleContent(bubble, text, { skipStructure = false } = {}) {
       if (!bubble) return;
       bubble.classList.remove("message-bubble--streaming", "loading");
       const displayText = applyChatTokens(normalizeChatMessageText(text));
-      bubble.innerHTML = `<div class="stream-live">${formatBotMessageHtml(displayText)}</div>`;
+      bubble.innerHTML = `<div class="stream-live">${formatBotMessageHtml(displayText, { skipStructure })}</div>`;
     }
 
     function updateStreamingBubble(rowEl, text, { scroll = true } = {}) {
@@ -709,6 +717,38 @@
       return String(body.textContent || "").replace(/\u200b/g, "");
     }
 
+    function bubbleHasVisibleBotContent(bubble) {
+      if (!bubble) return false;
+      const plain = getStreamedBubblePlainText(bubble).trim();
+      if (plain) return true;
+      const live = bubble.querySelector(".stream-live");
+      if (!live) return Boolean(String(bubble.textContent || "").trim());
+      return Boolean(
+        String(live.innerHTML || "")
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<[^>]+>/g, "")
+          .trim(),
+      );
+    }
+
+    function restoreBotBubbleFromRow(rowEl) {
+      const bubble = rowEl?.querySelector(".message-bubble");
+      if (!bubble) return;
+      const messageId = Number(rowEl.dataset.messageId);
+      if (!Number.isFinite(messageId) || messageId < 1) return;
+      const message = messageRows.find((item) => Number(item.id) === messageId);
+      if (!message) return;
+      const st = String(message.sender_type || "").trim().toLowerCase();
+      const text =
+        st === "bot"
+          ? getDisplayedBotMessageContent(message)
+          : normalizeChatMessageText(message.content || "");
+      if (!String(text || "").trim()) return;
+      const skipStructure =
+        st === "bot" && isInitialBotGreetingMessage(message);
+      setBotBubbleContent(bubble, text, { skipStructure });
+    }
+
     function capturePartialBotTextFromRow(rowEl) {
       const bubble = rowEl?.querySelector(".message-bubble");
       const plain = getStreamedBubblePlainText(bubble).trim();
@@ -721,9 +761,10 @@
       const text = String(partialText || "").trim();
       if (text) {
         setBotBubbleContent(bubble, text);
-      } else {
-        bubble.classList.remove("message-bubble--streaming", "loading");
+      } else if (!bubbleHasVisibleBotContent(bubble)) {
+        restoreBotBubbleFromRow(rowEl);
       }
+      bubble.classList.remove("message-bubble--streaming", "loading");
     }
 
     async function persistPartialBotReply({ messageId, text }) {
@@ -810,12 +851,18 @@
             message = { ...message, content: streamedText };
           }
         }
-        if (formatStreamPlainText(content).trim() !== streamedText) {
+        if (
+          !bubbleHasVisibleBotContent(bubble) ||
+          formatStreamPlainText(content).trim() !== streamedText
+        ) {
           setBotBubbleContent(bubble, content);
         } else {
           bubble.classList.remove("message-bubble--streaming", "loading");
         }
       } else if (bubble) {
+        if (!bubbleHasVisibleBotContent(bubble)) {
+          restoreBotBubbleFromRow(rowEl);
+        }
         bubble.classList.remove("message-bubble--streaming", "loading");
       }
 
@@ -1025,16 +1072,51 @@
     function getDisplayedBotMessageContent(message) {
       if (!message) return "";
       const variants = getBotSwipeVariants(message);
-      const raw = !variants
-        ? normalizeChatMessageText(message.content || "")
-        : normalizeChatMessageText(
-            String(
-              variants[clampSwipeVariantIndex(message._variantIndex, variants.length)] ??
-                message.content ??
-                "",
-            ),
-          );
+      let raw;
+      if (!variants) {
+        raw = normalizeChatMessageText(message.content || "");
+      } else {
+        const idx = clampSwipeVariantIndex(message._variantIndex, variants.length);
+        raw = normalizeChatMessageText(
+          String(variants[idx] ?? message.content ?? ""),
+        );
+        if (!raw.trim()) {
+          raw = normalizeChatMessageText(message.content || "");
+        }
+      }
       return applyChatTokens(raw);
+    }
+
+    /** Подставляет greeting_message, если первое сообщение бота пустое или не расшифровалось. */
+    function hydrateClientGreetingMessages() {
+      const greeting = String(currentBot?.greeting_message || "").trim();
+      if (!greeting) return;
+
+      const idx = messageRows.findIndex(
+        (row) => String(row?.sender_type || "").trim().toLowerCase() === "bot",
+      );
+      if (idx < 0) return;
+
+      const row = messageRows[idx];
+      const content = String(row?.content || "").trim();
+      if (content && !row._decryptFailed) return;
+
+      messageRows[idx] = {
+        ...row,
+        content: greeting,
+        _decryptFailed: false,
+        _hydratedFromGreeting: true,
+      };
+    }
+
+    function repairEmptyBotBubblesInDom() {
+      messagesBox.querySelectorAll(".message-bot[data-message-id]").forEach((rowEl) => {
+        const bubble = rowEl.querySelector(".message-bubble");
+        if (!bubble || bubble.classList.contains("message-bubble--editing")) return;
+        if (!bubbleHasVisibleBotContent(bubble)) {
+          restoreBotBubbleFromRow(rowEl);
+        }
+      });
     }
 
     function isSwipeVariantCommittedToServer(message) {
@@ -2442,10 +2524,12 @@
             showToast("Продолжение остановлено");
             return;
           }
+          restoreBotBubbleFromRow(row);
           bubble.classList.remove("message-bubble--streaming");
           showToast("Продолжение остановлено");
           return;
         }
+        restoreBotBubbleFromRow(row);
         bubble.classList.remove("message-bubble--streaming");
         throw error;
       } finally {
@@ -3003,6 +3087,8 @@
           ? getDisplayedBotMessageContent(message)
           : normalizeChatMessageText(message.content);
       const decryptUnavailable = Boolean(message._decryptFailed);
+      const skipRoleplayStructure =
+        type === "bot" && isInitialBotGreetingMessage(message);
 
       const footerActionsHtml = !isLoadingUi ? buildMessageFooterActions(message) : "";
       const footerHtml =
@@ -3022,7 +3108,7 @@
         : isStreamingUi && !bubbleText
           ? '<div class="stream-live"><span class="stream-cursor" aria-hidden="true"></span></div>'
           : type === "bot"
-            ? `<div class="stream-live">${formatBotMessageHtml(bubbleText)}</div>`
+            ? `<div class="stream-live">${formatBotMessageHtml(bubbleText, { skipStructure: skipRoleplayStructure })}</div>`
             : escapeHtml(bubbleText);
       const bubbleClass = `message-bubble ${isLoadingUi ? "loading" : ""}${isStreamingUi ? " message-bubble--streaming" : ""}${decryptUnavailable ? " message-bubble--unavailable" : ""}`;
       const bubbleAttrs =
@@ -3150,11 +3236,13 @@
 
         clearMessages();
         messageRows = Array.isArray(data.messages) ? [...data.messages] : [];
+        hydrateClientGreetingMessages();
 
         if (messageRows.length > 0) {
           messageRows.forEach((message) => {
             renderMessage(message);
           });
+          repairEmptyBotBubblesInDom();
         } else {
           renderEmpty("Начните диалог первым сообщением");
         }

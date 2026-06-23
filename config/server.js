@@ -142,8 +142,38 @@ const {
   encryptMessageContentForDb,
   decryptMessageContentFromDb,
   decryptMessageRowsForApi,
+  hydrateBotGreetingMessages,
   logKeyConfiguration,
 } = require("./messageContentCrypto");
+
+function messagesForChatApi(msgRows, bot) {
+  return hydrateBotGreetingMessages(decryptMessageRowsForApi(msgRows), bot);
+}
+
+function sendChatMessagesPayload(res, { chat, bot, msgRows }) {
+  const messages = messagesForChatApi(msgRows, bot);
+  messages.forEach((row) => repairHydratedGreetingInDb(row, bot));
+  res.json({ chat, bot, messages });
+}
+
+function repairHydratedGreetingInDb(messageRow, bot) {
+  if (!messageRow?._hydratedFromGreeting || !messageRow.id) return;
+  const greeting = String(bot?.greeting_message || "").trim();
+  if (!greeting) return;
+  db.query(
+    "UPDATE messages SET content = ? WHERE id = ? AND chat_id = ? LIMIT 1",
+    [encryptMessageContentForDb(greeting), messageRow.id, messageRow.chat_id],
+    (err) => {
+      if (err) {
+        console.warn(
+          "Не удалось восстановить приветствие в messages id=%s —",
+          messageRow.id,
+          err.message,
+        );
+      }
+    },
+  );
+}
 let hasEmailConfirmedColumnCache = null;
 
 function getString(value) {
@@ -1765,11 +1795,7 @@ app.get("/chat-by-bot/:botId", (req, res) => {
             });
           }
 
-          res.json({
-            chat,
-            bot,
-            messages: decryptMessageRowsForApi(msgRows2),
-          });
+          sendChatMessagesPayload(res, { chat, bot, msgRows: msgRows2 });
         });
       };
 
@@ -1792,11 +1818,7 @@ app.get("/chat-by-bot/:botId", (req, res) => {
           });
         }
 
-        res.json({
-          chat,
-          bot,
-          messages: decryptMessageRowsForApi(msgRows),
-        });
+        sendChatMessagesPayload(res, { chat, bot, msgRows });
       });
     };
 
@@ -2037,7 +2059,7 @@ app.get("/chat/:chatId", (req, res) => {
           });
         }
 
-        res.json({
+        sendChatMessagesPayload(res, {
           chat,
           bot: {
             id: chat.bot_id,
@@ -2045,7 +2067,7 @@ app.get("/chat/:chatId", (req, res) => {
             avatar_url: chat.avatar_url,
             greeting_message: chat.greeting_message,
           },
-          messages: decryptMessageRowsForApi(msgRows2),
+          msgRows: msgRows2,
         });
       });
     };
@@ -2069,7 +2091,7 @@ app.get("/chat/:chatId", (req, res) => {
         });
       }
 
-      res.json({
+      sendChatMessagesPayload(res, {
         chat,
         bot: {
           id: chat.bot_id,
@@ -2077,7 +2099,7 @@ app.get("/chat/:chatId", (req, res) => {
           avatar_url: chat.avatar_url,
           greeting_message: chat.greeting_message,
         },
-        messages: decryptMessageRowsForApi(msgRows),
+        msgRows,
       });
     });
   });
