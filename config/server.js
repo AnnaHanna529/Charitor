@@ -133,6 +133,7 @@ const {
   getBuiltinLlmMode,
   refreshOllamaHealth,
   applyModelOverrideToRuntimeConfig,
+  sanitizeBuiltinModelOverride,
   fetchAvailableLlmModels,
   fetchChutesProxyPresets,
   getServerCloudLlmRuntimeConfig,
@@ -774,16 +775,17 @@ function applyLlmSettingsToRuntimeConfig(cfg, llmSettings) {
 }
 
 function resolveRuntimeConfig(bodyProxy, bodyLlmModel, bodyLlmSettings) {
-  const modelOverride = String(bodyLlmModel || "").trim();
   const fromBody = normalizeRuntimeConfigFromBodyProxy(bodyProxy);
   let cfg;
   if (fromBody.proxy_url) {
+    const modelOverride = String(bodyLlmModel || "").trim();
     cfg =
       modelOverride && !fromBody.model
         ? applyModelOverrideToRuntimeConfig(fromBody, modelOverride)
         : fromBody;
   } else {
     const serverCfg = getBuiltinLlmRuntimeConfig();
+    const modelOverride = sanitizeBuiltinModelOverride(bodyLlmModel, serverCfg);
     cfg = modelOverride
       ? applyModelOverrideToRuntimeConfig(serverCfg, modelOverride)
       : serverCfg;
@@ -859,9 +861,7 @@ function respondWithLlmError(res, error, prefix = "") {
 }
 
 app.get("/api/llm-status", async (req, res) => {
-  if (getBuiltinLlmMode() === "ollama") {
-    await refreshOllamaHealth();
-  }
+  await refreshOllamaHealth();
   const status = getLlmPublicStatus();
   res.json({
     ...status,
@@ -889,6 +889,7 @@ app.get("/api/chutes-proxy-presets", async (req, res) => {
 
 app.get("/api/llm-models", async (req, res) => {
   try {
+    await refreshOllamaHealth();
     const status = getLlmPublicStatus();
     if (!status.ready) {
       return res.json({

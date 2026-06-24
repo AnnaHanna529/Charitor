@@ -59,9 +59,27 @@ function getServerCloudLlmRuntimeConfig() {
   };
 }
 
+/** cloud = Chutes/API из .env; ollama = локальный Ollama на сервере */
+function getEffectiveBuiltinBackend() {
+  const configured = getBuiltinLlmMode();
+  const cloud = getServerCloudLlmRuntimeConfig();
+  const hasCloud = Boolean(cloud.proxy_url && cloud.api_key);
+
+  if (configured === "cloud") {
+    return "cloud";
+  }
+  if (ollamaHealthCache.ready) {
+    return "ollama";
+  }
+  if (hasCloud) {
+    return "cloud";
+  }
+  return "ollama";
+}
+
 /** Конфиг «Встроенная» в чате: пустой proxy_url → запрос в Ollama на сервере */
 function getBuiltinLlmRuntimeConfig() {
-  if (getBuiltinLlmMode() === "cloud") {
+  if (getEffectiveBuiltinBackend() === "cloud") {
     return getServerCloudLlmRuntimeConfig();
   }
   return {};
@@ -134,34 +152,36 @@ async function getOllamaHealth() {
 }
 
 function getLlmPublicStatus() {
-  if (getBuiltinLlmMode() === "cloud") {
+  const backend = getEffectiveBuiltinBackend();
+  if (backend === "cloud") {
     const server = getServerCloudLlmRuntimeConfig();
-    if (server.proxy_url) {
-      return {
-        mode: "cloud",
-        builtin_mode: "cloud",
-        ready: Boolean(server.api_key),
-        model: server.model || null,
-        provider: detectCloudProvider(server.proxy_url),
-        free: false,
-        user_install_required: false,
-        description:
-          "Встроенные модели Qwen на сервере Charitor. Пользователям ключ не нужен.",
-      };
-    }
+    return {
+      mode: "cloud",
+      builtin_mode: getBuiltinLlmMode(),
+      backend: "cloud",
+      ready: Boolean(server.proxy_url && server.api_key),
+      model: server.model || null,
+      provider: detectCloudProvider(server.proxy_url),
+      free: false,
+      user_install_required: false,
+      description:
+        "Встроенные модели Qwen на сервере Charitor (Chutes). Выберите модель ниже — ключ только на сервере.",
+    };
   }
 
   return {
     mode: "ollama",
-    builtin_mode: "ollama",
+    builtin_mode: getBuiltinLlmMode(),
+    backend: "ollama",
     ready: ollamaHealthCache.ready,
     model: getOllamaDefaultModel(),
     provider: "ollama",
     base_url: getOllamaBaseUrl(),
     free: true,
     user_install_required: false,
-    description:
-      "Бесплатная модель на сервере Charitor (Ollama). На компьютере пользователя ничего ставить не нужно.",
+    description: ollamaHealthCache.ready
+      ? "Бесплатная Qwen через Ollama на сервере Charitor. Доступны только модели из Ollama (например qwen2.5:3b)."
+      : "Ollama на сервере недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b — или задайте BUILTIN_LLM_MODE=cloud и LLM_API_KEY.",
     ollama_error: ollamaHealthCache.ready ? null : ollamaHealthCache.error,
   };
 }
@@ -328,13 +348,26 @@ function getBuiltinQwenFallbackModels() {
 }
 
 async function fetchAvailableLlmModels() {
-  if (getBuiltinLlmMode() === "ollama") {
+  const backend = getEffectiveBuiltinBackend();
+  if (backend === "ollama") {
     const health = await getOllamaHealth();
+    if (!health.ready) return [];
     const qwen = filterBuiltinLlmModels(health.models || []);
-    return qwen.length ? qwen : getBuiltinQwenFallbackModels();
+    if (qwen.length) return qwen;
+    const def = getOllamaDefaultModel();
+    return isQwenModelId(def) ? [toModelListEntry(def)].filter(Boolean) : [];
   }
   const qwen = filterBuiltinLlmModels(await fetchCloudLlmModels());
   return qwen.length ? qwen : getBuiltinQwenFallbackModels();
+}
+
+function sanitizeBuiltinModelOverride(modelOverride, runtimeConfig) {
+  const model = String(modelOverride || "").trim();
+  if (!model) return "";
+  const useCloud = Boolean(String(runtimeConfig?.proxy_url || "").trim());
+  if (useCloud) return model;
+  if (model.includes("/")) return "";
+  return model;
 }
 
 async function logLlmModeAtStartup() {
@@ -373,7 +406,9 @@ async function logLlmModeAtStartup() {
 module.exports = {
   SECRETS_KEY_FILE,
   getBuiltinLlmMode,
+  getEffectiveBuiltinBackend,
   getBuiltinLlmRuntimeConfig,
+  sanitizeBuiltinModelOverride,
   getServerLlmRuntimeConfig,
   getServerCloudLlmRuntimeConfig,
   getLlmPublicStatus,

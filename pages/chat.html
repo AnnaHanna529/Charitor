@@ -1727,10 +1727,7 @@
         }
         showToast(`Модель для прокси: ${shortModelLabel(id)}`);
       } else {
-        if (!isUsingBuiltinLlm()) {
-          llmSource = "builtin";
-          writeProxyConfigs();
-        }
+        useBuiltinLlm();
         writeBuiltinSelectedModel(id);
         renderProxyConfigs();
         updateProxyButtonLabel();
@@ -1767,11 +1764,24 @@
         if (!builtinSelectedModel && /qwen/i.test(defaultModel) && serverLlmStatus.ready) {
           writeBuiltinSelectedModel(defaultModel);
         }
+        if (
+          builtinSelectedModel &&
+          llmModelsList.length &&
+          !llmModelsList.some(
+            (item) => String(item?.id || item?.name || "").trim() === builtinSelectedModel,
+          )
+        ) {
+          writeBuiltinSelectedModel(
+            /qwen/i.test(defaultModel) ? defaultModel : "",
+          );
+        }
         if (llmModelsHint) {
           llmModelsHint.textContent = llmModelsList.length
-            ? "Модели Qwen — нажмите, чтобы выбрать"
+            ? serverLlmStatus.mode === "ollama"
+              ? "Модели Ollama — нажмите, чтобы выбрать"
+              : "Модели Qwen (Chutes) — нажмите, чтобы выбрать"
             : serverLlmStatus.mode === "ollama" && !serverLlmStatus.ready
-              ? "Ollama на сервере недоступна — администратор должен запустить ollama serve"
+              ? "Ollama на сервере недоступна — администратор: ollama serve или BUILTIN_LLM_MODE=cloud"
               : "Список Qwen недоступен — попробуйте позже или вкладку «Прокси»";
         }
       } catch (error) {
@@ -2121,6 +2131,16 @@
     }
 
     let toastTimer = null;
+    function formatUserFacingChatError(error, fallback) {
+      if (error?.name === "AbortError") {
+        return "Генерация остановлена";
+      }
+      const msg = String(error?.message || "").trim();
+      if (/aborted/i.test(msg)) {
+        return "Генерация остановлена";
+      }
+      return msg || fallback;
+    }
     function showToast(text) {
       pageToast.textContent = text;
       pageToast.classList.remove("hidden");
@@ -3482,9 +3502,9 @@
         if (error.user_message) {
           messageRows[idx] = { ...messageRows[idx], ...error.user_message };
           rerenderMessages();
-          showToast(error.message || "Не удалось получить ответ бота");
+          showToast(formatUserFacingChatError(error, "Не удалось получить ответ бота"));
         } else {
-          showToast(error.message || "Не удалось получить ответ бота");
+          showToast(formatUserFacingChatError(error, "Не удалось получить ответ бота"));
         }
       } finally {
         stopAiBusy();
@@ -3674,9 +3694,9 @@
         if (error.user_message) {
           messageRows.push(error.user_message);
           rerenderMessages();
-          showToast(error.message || "Ошибка отправки сообщения");
+          showToast(formatUserFacingChatError(error, "Ошибка отправки сообщения"));
         } else {
-          showToast(error.message || "Ошибка отправки сообщения");
+          showToast(formatUserFacingChatError(error, "Ошибка отправки сообщения"));
         }
         try {
           await refreshChatMessagesFromServer();
