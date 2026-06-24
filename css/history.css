@@ -246,6 +246,41 @@ body {
   border-radius: 12px;
   background: linear-gradient(135deg, #6b42c8, #8849db);
   font-weight: 900;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chat-persona-meta {
+  width: 100%;
+  color: #f0c987;
+}
+
+.persona-pick-row {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.persona-pick-label {
+  font-size: 13px;
+  color: #d8d2ff;
+}
+
+.persona-pick-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 8, 40, 0.72);
+  color: #fff;
+  font: inherit;
+}
+
+.persona-pick-row .continue-btn {
+  align-self: stretch;
+  width: 100%;
 }
 
 @media (max-width: 1250px) {

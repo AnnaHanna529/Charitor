@@ -92,6 +92,7 @@
     const topAvatar = document.getElementById("topAvatar");
 
     let chats = [];
+    let personas = [];
 
     const savedAvatar =
       localStorage.getItem(`profileAvatar_${savedUser.id}`) ||
@@ -129,12 +130,40 @@
       return chat.avatar_url || "../img/icon.svg";
     }
 
-    function getChatLink(chat) {
+    function getChatLink(chat, personaId) {
+      const pid =
+        personaId != null && personaId !== ""
+          ? personaId
+          : chat.persona_id != null && chat.persona_id !== ""
+            ? chat.persona_id
+            : null;
       const personaPart =
-        chat.persona_id != null && chat.persona_id !== ""
-          ? `&persona=${encodeURIComponent(chat.persona_id)}`
-          : "";
+        pid != null && pid !== "" ? `&persona=${encodeURIComponent(pid)}` : "";
       return `./chat.html?id=${chat.bot_id}${personaPart}`;
+    }
+
+    function chatNeedsPersonaPick(chat) {
+      return (
+        (chat.persona_id == null || chat.persona_id === "") &&
+        Number(chat.messages_count || 0) > 0
+      );
+    }
+
+    function buildPersonaOptionsHtml(selectedId) {
+      if (!personas.length) {
+        return `<option value="">Нет персон — создайте в профиле</option>`;
+      }
+      const options = [`<option value="">Выберите персону…</option>`];
+      personas.forEach((persona) => {
+        const selected =
+          selectedId != null && Number(selectedId) === Number(persona.id)
+            ? " selected"
+            : "";
+        options.push(
+          `<option value="${Number(persona.id)}"${selected}>${escapeHtml(persona.name || "Персона")}</option>`,
+        );
+      });
+      return options.join("");
     }
 
     function renderChats(items) {
@@ -153,6 +182,12 @@
         const summary = chat.summary || `Последний чат с персонажем ${title}`;
         const isRestrictedBot =
           Number(chat.bot_is_blocked) === 1 || Number(chat.bot_is_deleted) === 1;
+        const needsPersona = chatNeedsPersonaPick(chat);
+        const personaLabel = chat.persona_name
+          ? `Персона: ${chat.persona_name}`
+          : needsPersona
+            ? "Персона удалена — выберите другую"
+            : "";
 
         const card = document.createElement("article");
         card.className = "chat-card";
@@ -169,11 +204,35 @@
             <div class="chat-meta">
               <span>${formatDate(chat.updated_at || chat.created_at)}</span>
               <span>${chat.messages_count || 0} сообщений</span>
+              ${personaLabel ? `<span class="chat-persona-meta">${escapeHtml(personaLabel)}</span>` : ""}
             </div>
 
-            <a href="${getChatLink(chat)}" class="continue-btn">Продолжить</a>
+            ${
+              needsPersona
+                ? `<div class="persona-pick-row">
+                    <label class="persona-pick-label" for="persona-pick-${chat.id}">Продолжить от лица</label>
+                    <select id="persona-pick-${chat.id}" class="persona-pick-select" data-bot-id="${Number(chat.bot_id)}">
+                      ${buildPersonaOptionsHtml()}
+                    </select>
+                    <button type="button" class="continue-btn continue-with-persona-btn" data-bot-id="${Number(chat.bot_id)}">Продолжить</button>
+                  </div>`
+                : `<a href="${getChatLink(chat)}" class="continue-btn">Продолжить</a>`
+            }
           </div>
         `;
+
+        if (needsPersona) {
+          const btn = card.querySelector(".continue-with-persona-btn");
+          const select = card.querySelector(".persona-pick-select");
+          btn.addEventListener("click", () => {
+            const personaId = Number(select.value);
+            if (!Number.isFinite(personaId) || personaId < 1) {
+              notifyUser("Выберите персону из списка", "error");
+              return;
+            }
+            window.location.href = getChatLink(chat, personaId);
+          });
+        }
 
         chatsGrid.appendChild(card);
       });
@@ -214,6 +273,17 @@
       renderChats(filtered);
     }
 
+    async function loadPersonas() {
+      try {
+        const response = await fetch(`${API_BASE}/personas/${savedUser.id}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        personas = Array.isArray(data) ? data : [];
+      } catch {
+        personas = [];
+      }
+    }
+
     async function loadChats() {
       statusBox.style.display = "block";
       statusBox.textContent = "Загрузка истории...";
@@ -244,7 +314,10 @@
     });
     sortSelect.addEventListener("change", applyFilters);
 
-    loadChats();
+    (async () => {
+      await loadPersonas();
+      await loadChats();
+    })();
   </script>
 </body>
 </html>

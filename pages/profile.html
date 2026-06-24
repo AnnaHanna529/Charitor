@@ -466,37 +466,47 @@
           .slice(0, 4);
       }
 
-      function getFollowersStorageKey(profile) {
-        return `profileFollowers_${getAuthorStorageKey(profile)}`;
-      }
+      let profileFollowState = {
+        followers_count: 0,
+        following: false,
+      };
 
-      function getFollowers(profile) {
-        try {
-          const value = localStorage.getItem(getFollowersStorageKey(profile));
-          const parsed = JSON.parse(value || "[]");
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
+      async function loadFollowState(profile) {
+        if (!profile?.id) {
+          profileFollowState = { followers_count: 0, following: false };
+          updateFollowersCount(profile);
+          updateFollowButton(profile);
+          return;
         }
-      }
-
-      function setFollowers(profile, followerIds) {
-        localStorage.setItem(
-          getFollowersStorageKey(profile),
-          JSON.stringify(followerIds),
-        );
-      }
-
-      function isFollowing(profile) {
-        return getFollowers(profile).includes(savedUser.id);
+        try {
+          const viewerPart =
+            savedUser?.id && !isOwnProfile(profile)
+              ? `?viewer_id=${encodeURIComponent(savedUser.id)}`
+              : "";
+          const response = await fetch(
+            `${API_BASE}/user-follows/profile/${encodeURIComponent(profile.id)}${viewerPart}`,
+          );
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(data.message || "Ошибка загрузки подписчиков");
+          }
+          profileFollowState = {
+            followers_count: Number(data.followers_count || 0),
+            following: Boolean(data.following),
+          };
+        } catch {
+          profileFollowState = { followers_count: 0, following: false };
+        }
+        updateFollowersCount(profile);
+        updateFollowButton(profile);
       }
 
       function updateFollowersCount(profile) {
-        followersCount.textContent = String(getFollowers(profile).length);
+        followersCount.textContent = String(profileFollowState.followers_count || 0);
       }
 
       function updateFollowButton(profile) {
-        const active = isFollowing(profile);
+        const active = profileFollowState.following;
         followAuthorBtn.textContent = active ? "Отписаться" : "Подписаться";
         followAuthorBtn.classList.toggle("is-following", active);
       }
@@ -819,20 +829,42 @@
         syncEditToggleButtonState();
       });
 
-      followAuthorBtn.addEventListener("click", () => {
+      followAuthorBtn.addEventListener("click", async () => {
         if (String(viewedProfile?.id) === String(savedUser.id)) {
           notifyUser("Нельзя подписаться на себя", "warning");
           return;
         }
-        const followers = getFollowers(viewedProfile);
-        const already = followers.includes(savedUser.id);
-        const next = already
-          ? followers.filter((id) => id !== savedUser.id)
-          : [...followers, savedUser.id];
+        if (!viewedProfile?.id) {
+          notifyUser("Не удалось определить профиль", "error");
+          return;
+        }
 
-        setFollowers(viewedProfile, next);
-        updateFollowersCount(viewedProfile);
-        updateFollowButton(viewedProfile);
+        try {
+          const response = await fetch(`${API_BASE}/user-follows/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              follower_id: savedUser.id,
+              following_id: viewedProfile.id,
+            }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(data.message || "Ошибка подписки");
+          }
+          profileFollowState = {
+            followers_count: Number(data.followers_count || 0),
+            following: Boolean(data.following),
+          };
+          updateFollowersCount(viewedProfile);
+          updateFollowButton(viewedProfile);
+          notifyUser(data.message || "Готово", "success");
+          if (typeof window.refreshEventNotifications === "function") {
+            window.refreshEventNotifications();
+          }
+        } catch (error) {
+          notifyUser(error.message || "Ошибка подписки", "error");
+        }
       });
 
       reportProfileBtn.addEventListener("click", async () => {
@@ -1046,7 +1078,7 @@
             } else if (userAvatar && userAvatar.trim()) {
               setProfileAvatarImage(userAvatar);
             } else {
-              setProfileAvatarImage("/img/icon.svg");
+              setProfileAvatarImage("");
             }
 
             viewedProfile = {
@@ -1056,12 +1088,12 @@
               avatar_url: profileData.avatar_url || userAvatar,
             };
             updateFollowButtonVisibility(viewedProfile);
-            updateFollowersCount(viewedProfile);
+            await loadFollowState(viewedProfile);
           } catch (error) {
             notifyUser(error.message || "Ошибка загрузки профиля", "error");
             applyProfileBaseData(savedUser);
             applyProfileBioHtml(localStorage.getItem(bioStorageKey));
-            setProfileAvatarImage(userAvatar || "/img/icon.svg");
+            setProfileAvatarImage(userAvatar);
           }
           return;
         }
@@ -1082,8 +1114,7 @@
               viewedProfile.avatar_url || "/img/icon.svg",
             );
             updateFollowButtonVisibility(viewedProfile);
-            updateFollowersCount(viewedProfile);
-            updateFollowButton(viewedProfile);
+            await loadFollowState(viewedProfile);
             return;
           }
 
@@ -1131,12 +1162,11 @@
           if (viewedProfile.avatar_url) {
             setProfileAvatarImage(viewedProfile.avatar_url);
           } else {
-            setProfileAvatarImage("/img/icon.svg");
+            setProfileAvatarImage("");
           }
 
           updateFollowButtonVisibility(viewedProfile);
-          updateFollowersCount(viewedProfile);
-          updateFollowButton(viewedProfile);
+          await loadFollowState(viewedProfile);
         } catch (error) {
           notifyUser("Ошибка загрузки данных профиля", "error");
           viewedProfile = {
@@ -1149,8 +1179,7 @@
           profilePreview.innerHTML = `Профиль автора @${viewedProfile.username}`;
           profileEditor.innerHTML = profilePreview.innerHTML;
           updateFollowButtonVisibility(viewedProfile);
-          updateFollowersCount(viewedProfile);
-          updateFollowButton(viewedProfile);
+          await loadFollowState(viewedProfile);
         }
       }
 

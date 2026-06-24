@@ -407,6 +407,24 @@ function ensureBotDeletedColumn() {
   });
 }
 
+function ensureBotAvatarLongtext() {
+  const sql = `
+    ALTER TABLE bots
+    MODIFY COLUMN avatar_url LONGTEXT NULL
+  `;
+
+  db.query(sql, (err) => {
+    if (!err) {
+      console.log("БД: bots.avatar_url приведён к LONGTEXT");
+      return;
+    }
+    console.warn(
+      "БД: не удалось проверить/изменить bots.avatar_url (LONGTEXT) —",
+      err.message,
+    );
+  });
+}
+
 function ensureMessagesPolicyViolationColumn() {
   const sql = `
     ALTER TABLE messages
@@ -466,6 +484,190 @@ function ensureFavoritesBotsUserBotIndex() {
       err.message,
     );
   });
+}
+
+function ensureUserFollowsTable() {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS user_follows (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      follower_id INT NOT NULL,
+      following_id INT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY idx_user_follow_pair (follower_id, following_id),
+      INDEX idx_user_follows_following (following_id),
+      INDEX idx_user_follows_follower (follower_id)
+    )
+  `;
+
+  db.query(sql, (err) => {
+    if (err) {
+      console.warn("БД: не удалось создать таблицу user_follows —", err.message);
+      return;
+    }
+    console.log("БД: таблица user_follows готова");
+  });
+}
+
+function ensureEventNotificationsTable() {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS event_notifications (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      type ENUM('follow', 'favorite_bot', 'new_bot') NOT NULL,
+      actor_id INT DEFAULT NULL,
+      bot_id INT DEFAULT NULL,
+      message VARCHAR(500) NOT NULL,
+      is_read TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_event_notif_user (user_id, is_read, created_at)
+    )
+  `;
+
+  db.query(sql, (err) => {
+    if (err) {
+      console.warn(
+        "БД: не удалось создать таблицу event_notifications —",
+        err.message,
+      );
+      return;
+    }
+    console.log("БД: таблица event_notifications готова");
+  });
+}
+
+function lookupUsername(userId, callback) {
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id < 1) {
+    return callback(null, "Пользователь");
+  }
+  db.query(
+    "SELECT username FROM users WHERE id = ? LIMIT 1",
+    [id],
+    (err, rows) => {
+      if (err || !rows.length) {
+        return callback(err, "Пользователь");
+      }
+      callback(null, rows[0].username || "Пользователь");
+    },
+  );
+}
+
+function lookupBotSummary(botId, callback) {
+  const id = Number(botId);
+  if (!Number.isFinite(id) || id < 1) {
+    return callback(null, null);
+  }
+  db.query(
+    "SELECT id, name, creator_id FROM bots WHERE id = ? LIMIT 1",
+    [id],
+    (err, rows) => {
+      if (err || !rows.length) {
+        return callback(err, null);
+      }
+      callback(null, rows[0]);
+    },
+  );
+}
+
+function insertEventNotification(payload, done) {
+  const recipientId = Number(payload?.recipientId);
+  const actorId =
+    payload?.actorId != null ? Number(payload.actorId) : null;
+  const botId = payload?.botId != null ? Number(payload.botId) : null;
+  const type = String(payload?.type || "").trim();
+
+  if (!Number.isFinite(recipientId) || recipientId < 1 || !type) {
+    done?.();
+    return;
+  }
+  if (Number.isFinite(actorId) && actorId === recipientId) {
+    done?.();
+    return;
+  }
+
+  const save = (message) => {
+    db.query(
+      `
+        INSERT INTO event_notifications (user_id, type, actor_id, bot_id, message)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        recipientId,
+        type,
+        Number.isFinite(actorId) && actorId > 0 ? actorId : null,
+        Number.isFinite(botId) && botId > 0 ? botId : null,
+        String(message || "").slice(0, 500),
+      ],
+      () => done?.(),
+    );
+  };
+
+  if (payload?.message) {
+    save(payload.message);
+    return;
+  }
+
+  lookupUsername(actorId, (_err, actorName) => {
+    const name = actorName || "Пользователь";
+    if (type === "follow") {
+      save(`${name} оформил(а) подписку на ваш профиль`);
+      return;
+    }
+    if (type === "favorite_bot") {
+      lookupBotSummary(botId, (_bErr, bot) => {
+        const botName = bot?.name || "персонажа";
+        save(`${name} добавил(а) вашего персонажа «${botName}» в избранное`);
+      });
+      return;
+    }
+    if (type === "new_bot") {
+      lookupBotSummary(botId, (_bErr, bot) => {
+        const botName = bot?.name || "нового персонажа";
+        save(
+          `${name}, на которого вы подписаны, создал(а) персонажа «${botName}»`,
+        );
+      });
+      return;
+    }
+    done?.();
+  });
+}
+
+function notifyFollowersAboutNewBot(creatorId, botId, done) {
+  const creator = Number(creatorId);
+  const bot = Number(botId);
+  if (!Number.isFinite(creator) || creator < 1 || !Number.isFinite(bot) || bot < 1) {
+    done?.();
+    return;
+  }
+
+  db.query(
+    "SELECT follower_id FROM user_follows WHERE following_id = ?",
+    [creator],
+    (err, rows) => {
+      if (err || !rows.length) {
+        done?.();
+        return;
+      }
+      let pending = rows.length;
+      rows.forEach((row) => {
+        insertEventNotification(
+          {
+            recipientId: row.follower_id,
+            type: "new_bot",
+            actorId: creator,
+            botId: bot,
+          },
+          () => {
+            pending -= 1;
+            if (pending <= 0) {
+              done?.();
+            }
+          },
+        );
+      });
+    },
+  );
 }
 
 function ensureReportsTable() {
@@ -717,18 +919,155 @@ function requireUserIdFromQuery(req, res) {
   return userId;
 }
 
+function runDbSteps(steps, callback) {
+  let index = 0;
+  const next = (err) => {
+    if (err) return callback(err);
+    if (index >= steps.length) return callback(null);
+    const step = steps[index];
+    index += 1;
+    db.query(step.sql, step.params, (queryErr) => next(queryErr));
+  };
+  next(null);
+}
+
+function purgeBotRelations(botId, callback) {
+  const id = Number(botId);
+  if (!Number.isFinite(id) || id < 1) {
+    return callback(new Error("Некорректный id бота"));
+  }
+
+  runDbSteps(
+    [
+      {
+        sql: `
+          DELETE m
+          FROM messages m
+          INNER JOIN chats c ON m.chat_id = c.id
+          WHERE c.bot_id = ?
+        `,
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM chats WHERE bot_id = ?",
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM favorites_bots WHERE bot_id = ?",
+        params: [id],
+      },
+    ],
+    callback,
+  );
+}
+
 function deleteBotByAdmin(botId, callback) {
+  const id = Number(botId);
+  if (!Number.isFinite(id) || id < 1) {
+    return callback(new Error("Некорректный id бота"));
+  }
+
   db.query(
-    `
-      UPDATE bots
-      SET is_deleted = 1, is_blocked = 1, visibility = 'private', updated_at = NOW()
-      WHERE id = ?
-    `,
-    [botId],
-    (botErr, result) => {
-      if (botErr) return callback(botErr);
-      callback(null, result);
+    "SELECT id, COALESCE(is_deleted, 0) AS is_deleted FROM bots WHERE id = ? LIMIT 1",
+    [id],
+    (lookupErr, rows) => {
+      if (lookupErr) return callback(lookupErr);
+      if (!rows.length) return callback(new Error("Бот не найден"));
+      if (Number(rows[0].is_deleted) === 1) {
+        return callback(null, { affectedRows: 0, alreadyDeleted: true });
+      }
+
+      db.query(
+        `
+          UPDATE bots
+          SET is_deleted = 1, is_blocked = 1, visibility = 'private', updated_at = NOW()
+          WHERE id = ?
+        `,
+        [id],
+        (botErr, result) => {
+          if (botErr) return callback(botErr);
+          callback(null, result);
+        },
+      );
     },
+  );
+}
+
+function deleteUserByAdmin(userId, callback) {
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id < 1) {
+    return callback(new Error("Некорректный id пользователя"));
+  }
+
+  runDbSteps(
+    [
+      {
+        sql: `
+          DELETE m
+          FROM messages m
+          INNER JOIN chats c ON m.chat_id = c.id
+          WHERE c.user_id = ?
+        `,
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM chats WHERE user_id = ?",
+        params: [id],
+      },
+      {
+        sql: `
+          DELETE m
+          FROM messages m
+          INNER JOIN chats c ON m.chat_id = c.id
+          INNER JOIN bots b ON c.bot_id = b.id
+          WHERE b.creator_id = ?
+        `,
+        params: [id],
+      },
+      {
+        sql: `
+          DELETE c
+          FROM chats c
+          INNER JOIN bots b ON c.bot_id = b.id
+          WHERE b.creator_id = ?
+        `,
+        params: [id],
+      },
+      {
+        sql: `
+          DELETE fb
+          FROM favorites_bots fb
+          INNER JOIN bots b ON fb.bot_id = b.id
+          WHERE b.creator_id = ?
+        `,
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM favorites_bots WHERE user_id = ?",
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM user_follows WHERE follower_id = ? OR following_id = ?",
+        params: [id, id],
+      },
+      {
+        sql: "DELETE FROM event_notifications WHERE user_id = ? OR actor_id = ?",
+        params: [id, id],
+      },
+      {
+        sql: "DELETE FROM personas WHERE user_id = ?",
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM bots WHERE creator_id = ?",
+        params: [id],
+      },
+      {
+        sql: "DELETE FROM users WHERE id = ?",
+        params: [id],
+      },
+    ],
+    callback,
   );
 }
 
@@ -736,58 +1075,29 @@ function isBotPrivateVisibility(visibility) {
   return String(visibility || "").trim().toLowerCase() === "private";
 }
 
-function guardAdminBotAccess(botId, res, onAllowed) {
-  db.query("SELECT id, visibility FROM bots WHERE id = ? LIMIT 1", [botId], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ message: "Ошибка проверки бота" });
-    }
-    if (!rows.length || isBotPrivateVisibility(rows[0].visibility)) {
-      return res.status(404).json({ message: "Бот не найден" });
-    }
-    onAllowed(rows[0]);
-  });
-}
-
-function deleteUserByAdmin(userId, callback) {
-  const deleteMessagesSql = `
-    DELETE m
-    FROM messages m
-    INNER JOIN chats c ON m.chat_id = c.id
-    WHERE c.user_id = ?
-  `;
-
-  db.query(deleteMessagesSql, [userId], (messagesErr) => {
-    if (messagesErr) return callback(messagesErr);
-    db.query("DELETE FROM chats WHERE user_id = ?", [userId], (chatsErr) => {
-      if (chatsErr) return callback(chatsErr);
-      const deleteBotsMessagesSql = `
-        DELETE m
-        FROM messages m
-        INNER JOIN chats c ON m.chat_id = c.id
-        INNER JOIN bots b ON c.bot_id = b.id
-        WHERE b.creator_id = ?
-      `;
-      db.query(deleteBotsMessagesSql, [userId], (bmErr) => {
-        if (bmErr) return callback(bmErr);
-        const deleteBotsChatsSql = `
-          DELETE c
-          FROM chats c
-          INNER JOIN bots b ON c.bot_id = b.id
-          WHERE b.creator_id = ?
-        `;
-        db.query(deleteBotsChatsSql, [userId], (bcErr) => {
-          if (bcErr) return callback(bcErr);
-          db.query("DELETE FROM bots WHERE creator_id = ?", [userId], (botsErr) => {
-            if (botsErr) return callback(botsErr);
-            db.query("DELETE FROM users WHERE id = ?", [userId], (userErr, result) => {
-              if (userErr) return callback(userErr);
-              callback(null, result);
-            });
-          });
-        });
-      });
-    });
-  });
+function loadAdminBotById(botId, res, onAllowed) {
+  db.query(
+    `
+      SELECT
+        id,
+        visibility,
+        COALESCE(is_deleted, 0) AS is_deleted,
+        COALESCE(is_blocked, 0) AS is_blocked
+      FROM bots
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [botId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ message: "Ошибка проверки бота" });
+      }
+      if (!rows.length) {
+        return res.status(404).json({ message: "Бот не найден" });
+      }
+      onAllowed(rows[0]);
+    },
+  );
 }
 
 function deleteChatsForUserBotPersona(userId, botId, personaId, callback) {
@@ -1320,9 +1630,15 @@ app.post("/create-bot", (req, res) => {
         });
       }
 
+      const newBotId = result.insertId;
+
+      if (safeVisibility === "public") {
+        notifyFollowersAboutNewBot(creator_id, newBotId, () => {});
+      }
+
       res.json({
         message: "Персонаж создан ✅",
-        bot_id: result.insertId,
+        bot_id: newBotId,
       });
     },
   );
@@ -1543,41 +1859,25 @@ app.delete("/bot/:id", (req, res) => {
       });
     }
 
-    const deleteMessagesSql = `
-      DELETE m
-      FROM messages m
-      INNER JOIN chats c ON m.chat_id = c.id
-      WHERE c.bot_id = ?
-    `;
-
-    db.query(deleteMessagesSql, [id], (messagesErr) => {
-      if (messagesErr) {
+    purgeBotRelations(id, (purgeErr) => {
+      if (purgeErr) {
+        console.error("purgeBotRelations:", purgeErr.code || purgeErr.message);
         return res.status(500).json({
-          message: "Ошибка удаления сообщений",
+          message: "Ошибка удаления связанных данных бота",
         });
       }
 
-      const deleteChatsSql = `DELETE FROM chats WHERE bot_id = ?`;
+      const deleteBotSql = `DELETE FROM bots WHERE id = ?`;
 
-      db.query(deleteChatsSql, [id], (chatsErr) => {
-        if (chatsErr) {
+      db.query(deleteBotSql, [id], (deleteErr) => {
+        if (deleteErr) {
           return res.status(500).json({
-            message: "Ошибка удаления чатов",
+            message: "Ошибка удаления бота",
           });
         }
 
-        const deleteBotSql = `DELETE FROM bots WHERE id = ?`;
-
-        db.query(deleteBotSql, [id], (deleteErr) => {
-          if (deleteErr) {
-            return res.status(500).json({
-              message: "Ошибка удаления бота",
-            });
-          }
-
-          res.json({
-            message: "Бот удалён ✅",
-          });
+        res.json({
+          message: "Бот удалён ✅",
         });
       });
     });
@@ -3381,9 +3681,11 @@ app.get("/my-chats/:userId", (req, res) => {
       b.avatar_url,
       COALESCE(b.is_blocked, 0) AS bot_is_blocked,
       COALESCE(b.is_deleted, 0) AS bot_is_deleted,
+      p.name AS persona_name,
       (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) AS messages_count
     FROM chats c
     LEFT JOIN bots b ON c.bot_id = b.id
+    LEFT JOIN personas p ON p.id = c.persona_id AND p.user_id = c.user_id
     WHERE c.user_id = ?
     ORDER BY c.updated_at DESC, c.created_at DESC
   `;
@@ -3437,32 +3739,282 @@ app.post("/favorite-bots", (req, res) => {
     return res.status(400).json({ message: "Некорректный bot_id" });
   }
 
-  db.query("SELECT id FROM bots WHERE id = ? LIMIT 1", [bot_id], (botErr, botRows) => {
-    if (botErr) {
-      console.error("favorite-bots POST bot check:", botErr);
-      return res.status(500).json({ message: "Ошибка проверки бота" });
-    }
-    if (!botRows.length) {
-      return res.status(404).json({ message: "Бот не найден" });
-    }
+  db.query(
+    "SELECT id, name, creator_id FROM bots WHERE id = ? LIMIT 1",
+    [bot_id],
+    (botErr, botRows) => {
+      if (botErr) {
+        console.error("favorite-bots POST bot check:", botErr);
+        return res.status(500).json({ message: "Ошибка проверки бота" });
+      }
+      if (!botRows.length) {
+        return res.status(404).json({ message: "Бот не найден" });
+      }
 
-    const insertSql = `
+      const botRow = botRows[0];
+      const insertSql = `
       INSERT INTO favorites_bots (user_id, bot_id, created_at)
       VALUES (?, ?, NOW())
     `;
 
-    db.query(insertSql, [user_id, bot_id], (insErr) => {
-      if (insErr) {
-        if (insErr.code === "ER_DUP_ENTRY" || Number(insErr.errno) === 1062) {
-          return res.json({ message: "Уже в избранном", already: true, bot_id });
-        }
-        console.error("favorite-bots POST:", insErr);
-        return res.status(500).json({ message: "Ошибка добавления в избранное" });
+      db.query(insertSql, [user_id, bot_id], (insErr) => {
+          if (insErr) {
+            if (insErr.code === "ER_DUP_ENTRY" || Number(insErr.errno) === 1062) {
+              return res.json({ message: "Уже в избранном", already: true, bot_id });
+            }
+            console.error("favorite-bots POST:", insErr);
+            return res.status(500).json({ message: "Ошибка добавления в избранное" });
+          }
+
+          const creatorId = Number(botRow?.creator_id);
+          if (
+            botRow &&
+            Number.isFinite(creatorId) &&
+            creatorId > 0 &&
+            creatorId !== user_id
+          ) {
+            insertEventNotification(
+              {
+                recipientId: creatorId,
+                type: "favorite_bot",
+                actorId: user_id,
+                botId: bot_id,
+              },
+              () => {},
+            );
+          }
+
+          res.json({ message: "Добавлено в избранное ✅", bot_id });
+        });
+    },
+  );
+});
+
+/* Подписки на авторов */
+app.get("/user-follows/profile/:userId", (req, res) => {
+  const userId = parseInt(String(req.params.userId), 10);
+  const viewerId = parseInt(String(req.query.viewer_id || ""), 10);
+
+  if (!Number.isFinite(userId) || userId < 1) {
+    return res.status(400).json({ message: "Некорректный userId" });
+  }
+
+  db.query(
+    "SELECT COUNT(*) AS cnt FROM user_follows WHERE following_id = ?",
+    [userId],
+    (countErr, countRows) => {
+      if (countErr) {
+        console.error("user-follows profile count:", countErr);
+        return res.status(500).json({ message: "Ошибка загрузки подписчиков" });
       }
 
-      res.json({ message: "Добавлено в избранное ✅", bot_id });
-    });
-  });
+      const followers_count = Number(countRows?.[0]?.cnt || 0);
+      const payload = { followers_count, following: false };
+
+      if (!Number.isFinite(viewerId) || viewerId < 1 || viewerId === userId) {
+        return res.json(payload);
+      }
+
+      db.query(
+        "SELECT id FROM user_follows WHERE follower_id = ? AND following_id = ? LIMIT 1",
+        [viewerId, userId],
+        (followErr, followRows) => {
+          if (followErr) {
+            console.error("user-follows profile status:", followErr);
+            return res.status(500).json({ message: "Ошибка проверки подписки" });
+          }
+          payload.following = followRows.length > 0;
+          res.json(payload);
+        },
+      );
+    },
+  );
+});
+
+app.get("/user-follows/following/:userId", (req, res) => {
+  const userId = parseInt(String(req.params.userId), 10);
+  if (!Number.isFinite(userId) || userId < 1) {
+    return res.status(400).json({ message: "Некорректный userId" });
+  }
+
+  db.query(
+    "SELECT following_id FROM user_follows WHERE follower_id = ? ORDER BY created_at DESC",
+    [userId],
+    (err, rows) => {
+      if (err) {
+        console.error("user-follows following:", err);
+        return res.status(500).json({ message: "Ошибка загрузки подписок" });
+      }
+      const following_ids = (rows || [])
+        .map((row) => Number(row.following_id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      res.json({ following_ids });
+    },
+  );
+});
+
+app.post("/user-follows/toggle", (req, res) => {
+  const followerId = parseInt(String(req.body?.follower_id), 10);
+  const followingId = parseInt(String(req.body?.following_id), 10);
+
+  if (!Number.isFinite(followerId) || followerId < 1) {
+    return res.status(400).json({ message: "Некорректный follower_id" });
+  }
+  if (!Number.isFinite(followingId) || followingId < 1) {
+    return res.status(400).json({ message: "Некорректный following_id" });
+  }
+  if (followerId === followingId) {
+    return res.status(400).json({ message: "Нельзя подписаться на себя" });
+  }
+
+  db.query(
+    "SELECT id FROM user_follows WHERE follower_id = ? AND following_id = ? LIMIT 1",
+    [followerId, followingId],
+    (lookupErr, rows) => {
+      if (lookupErr) {
+        console.error("user-follows toggle lookup:", lookupErr);
+        return res.status(500).json({ message: "Ошибка проверки подписки" });
+      }
+
+      const finish = (following) => {
+        db.query(
+          "SELECT COUNT(*) AS cnt FROM user_follows WHERE following_id = ?",
+          [followingId],
+          (countErr, countRows) => {
+            if (countErr) {
+              return res.status(500).json({ message: "Ошибка подсчёта подписчиков" });
+            }
+            res.json({
+              following,
+              followers_count: Number(countRows?.[0]?.cnt || 0),
+              message: following ? "Подписка оформлена ✅" : "Подписка отменена",
+            });
+          },
+        );
+      };
+
+      if (rows.length) {
+        db.query(
+          "DELETE FROM user_follows WHERE follower_id = ? AND following_id = ?",
+          [followerId, followingId],
+          (delErr) => {
+            if (delErr) {
+              console.error("user-follows toggle delete:", delErr);
+              return res.status(500).json({ message: "Ошибка отмены подписки" });
+            }
+            finish(false);
+          },
+        );
+        return;
+      }
+
+      db.query(
+        "INSERT INTO user_follows (follower_id, following_id, created_at) VALUES (?, ?, NOW())",
+        [followerId, followingId],
+        (insErr) => {
+          if (insErr) {
+            console.error("user-follows toggle insert:", insErr);
+            return res.status(500).json({ message: "Ошибка оформления подписки" });
+          }
+          insertEventNotification(
+            {
+              recipientId: followingId,
+              type: "follow",
+              actorId: followerId,
+            },
+            () => finish(true),
+          );
+        },
+      );
+    },
+  );
+});
+
+/* Уведомления о событиях */
+app.get("/event-notifications/:userId", (req, res) => {
+  const userId = parseInt(String(req.params.userId), 10);
+  const limit = Math.min(
+    Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1),
+    100,
+  );
+
+  if (!Number.isFinite(userId) || userId < 1) {
+    return res.status(400).json({ message: "Некорректный userId" });
+  }
+
+  db.query(
+    `
+      SELECT
+        id,
+        type,
+        actor_id,
+        bot_id,
+        message,
+        is_read,
+        created_at
+      FROM event_notifications
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `,
+    [userId, limit],
+    (listErr, rows) => {
+      if (listErr) {
+        console.error("event-notifications list:", listErr);
+        return res.status(500).json({ message: "Ошибка загрузки уведомлений" });
+      }
+
+      db.query(
+        "SELECT COUNT(*) AS cnt FROM event_notifications WHERE user_id = ? AND is_read = 0",
+        [userId],
+        (countErr, countRows) => {
+          if (countErr) {
+            return res.status(500).json({ message: "Ошибка подсчёта уведомлений" });
+          }
+          res.json({
+            notifications: rows || [],
+            unread_count: Number(countRows?.[0]?.cnt || 0),
+          });
+        },
+      );
+    },
+  );
+});
+
+app.post("/event-notifications/:userId/read", (req, res) => {
+  const userId = parseInt(String(req.params.userId), 10);
+  const notificationId = parseInt(String(req.body?.notification_id || ""), 10);
+
+  if (!Number.isFinite(userId) || userId < 1) {
+    return res.status(400).json({ message: "Некорректный userId" });
+  }
+
+  if (Number.isFinite(notificationId) && notificationId > 0) {
+    db.query(
+      "UPDATE event_notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+      [notificationId, userId],
+      (err) => {
+        if (err) {
+          console.error("event-notifications read one:", err);
+          return res.status(500).json({ message: "Ошибка обновления уведомления" });
+        }
+        res.json({ message: "Уведомление прочитано" });
+      },
+    );
+    return;
+  }
+
+  db.query(
+    "UPDATE event_notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
+    [userId],
+    (err) => {
+      if (err) {
+        console.error("event-notifications read all:", err);
+        return res.status(500).json({ message: "Ошибка обновления уведомлений" });
+      }
+      res.json({ message: "Все уведомления прочитаны" });
+    },
+  );
 });
 
 app.delete("/favorite-bots", (req, res) => {
@@ -3782,6 +4334,7 @@ app.delete("/admin/users/:id", requireAdmin, (req, res) => {
 
   deleteUserByAdmin(id, (err) => {
     if (err) {
+      console.error("deleteUserByAdmin:", err.code || err.message);
       return res.status(500).json({
         message: "Ошибка удаления пользователя",
       });
@@ -3809,7 +4362,7 @@ app.get("/admin/bots", requireAdmin, (req, res) => {
       u.username AS author_name
     FROM bots b
     LEFT JOIN users u ON b.creator_id = u.id
-    WHERE b.visibility = 'public'
+    WHERE COALESCE(b.is_deleted, 0) = 0
     ORDER BY b.id DESC
   `;
 
@@ -3835,14 +4388,14 @@ app.put("/admin/bots/:id/block", requireAdmin, (req, res) => {
   const { id } = req.params;
   const shouldBlock = Number(req.body?.is_blocked) === 1 ? 1 : 0;
 
-  guardAdminBotAccess(id, res, () => {
+  loadAdminBotById(id, res, () => {
     db.query(
       `
         UPDATE bots
         SET
           is_blocked = ?,
           updated_at = NOW()
-        WHERE id = ? AND visibility = 'public'
+        WHERE id = ?
       `,
       [shouldBlock, id],
       (err, result) => {
@@ -3866,9 +4419,10 @@ app.put("/admin/bots/:id/block", requireAdmin, (req, res) => {
 /*Удаление бота админом*/
 app.delete("/admin/bots/:id", requireAdmin, (req, res) => {
   const { id } = req.params;
-  guardAdminBotAccess(id, res, () => {
+  loadAdminBotById(id, res, () => {
     deleteBotByAdmin(id, (err) => {
       if (err) {
+        console.error("deleteBotByAdmin:", err.code || err.message);
         return res.status(500).json({
           message: "Ошибка удаления бота",
         });
@@ -4351,28 +4905,83 @@ app.delete("/persona/:id", (req, res) => {
     });
   }
 
-  const sql = `
-    DELETE FROM personas
-    WHERE id = ? AND user_id = ?
-  `;
-
-  db.query(sql, [id, user_id], (err, result) => {
-    if (err) {
-      return res.status(500).json({
-        message: "Ошибка удаления персоны",
-      });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "Персона не найдена",
-      });
-    }
-
-    res.json({
-      message: "Персона удалена ✅",
+  const personaId = Number(id);
+  const userId = Number(user_id);
+  if (!Number.isFinite(personaId) || personaId < 1 || !Number.isFinite(userId) || userId < 1) {
+    return res.status(400).json({
+      message: "Некорректные данные персоны",
     });
-  });
+  }
+
+  db.query(
+    "SELECT id, COALESCE(is_default, 0) AS is_default FROM personas WHERE id = ? AND user_id = ? LIMIT 1",
+    [personaId, userId],
+    (lookupErr, rows) => {
+      if (lookupErr) {
+        console.error("delete persona lookup:", lookupErr.code || lookupErr.message);
+        return res.status(500).json({
+          message: "Ошибка проверки персоны",
+        });
+      }
+      if (!rows.length) {
+        return res.status(404).json({
+          message: "Персона не найдена",
+        });
+      }
+
+      const wasDefault = Number(rows[0].is_default) === 1;
+
+      runDbSteps(
+        [
+          {
+            sql: `
+              UPDATE chats
+              SET persona_id = NULL, updated_at = NOW()
+              WHERE persona_id = ? AND user_id = ?
+            `,
+            params: [personaId, userId],
+          },
+          {
+            sql: "DELETE FROM personas WHERE id = ? AND user_id = ?",
+            params: [personaId, userId],
+          },
+        ],
+        (delErr) => {
+          if (delErr) {
+            console.error("delete persona:", delErr.code || delErr.message);
+            return res.status(500).json({
+              message: "Ошибка удаления персоны",
+            });
+          }
+
+          const finish = () => {
+            res.json({
+              message: "Персона удалена ✅",
+            });
+          };
+
+          if (!wasDefault) {
+            return finish();
+          }
+
+          db.query(
+            "SELECT id FROM personas WHERE user_id = ? ORDER BY id ASC LIMIT 1",
+            [userId],
+            (pickErr, pickRows) => {
+              if (pickErr || !pickRows.length) {
+                return finish();
+              }
+              db.query(
+                "UPDATE personas SET is_default = 1 WHERE id = ? AND user_id = ?",
+                [pickRows[0].id, userId],
+                () => finish(),
+              );
+            },
+          );
+        },
+      );
+    },
+  );
 });
 /* удалить сообщения чата */
 app.delete("/chat/:chatId/messages", (req, res) => {
@@ -4517,9 +5126,12 @@ function startHttpServer(port) {
         ensureUsersProfileBioColumn();
         ensureBotBlockedColumn();
         ensureBotDeletedColumn();
+        ensureBotAvatarLongtext();
         ensureMessagesPolicyViolationColumn();
         ensureMessagesContentVariantsColumn();
         ensureFavoritesBotsUserBotIndex();
+        ensureUserFollowsTable();
+        ensureEventNotificationsTable();
         ensureReportsTable();
       }
     });

@@ -6,6 +6,7 @@ const {
   decryptMessageContentFromDb,
 } = require("./messageContentCrypto");
 const { structureRoleplayParagraphs } = require("../js/roleplayParagraphs");
+const { stripModelReasoningArtifacts } = require("../js/reasoningStrip");
 const { substituteChatTokens } = require("../js/chatTokens");
 const {
   mergeContinuationText,
@@ -531,14 +532,6 @@ function buildSamplingOptions(regenerate) {
   };
 }
 
-/** Убирает служебные блоки рассуждений (Qwen/Chutes и др.), чтобы в чат шла только реплика. */
-function stripModelReasoningArtifacts(text) {
-  return String(text || "")
-    .replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, "")
-    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "")
-    .replace(/[\s\S]*?<\/think>/gi, "")
-    .trim();
-}
 
 async function requestOllamaChat(model, messages, optionOverrides = {}, runtimeConfig = {}) {
   const controller = new AbortController();
@@ -615,7 +608,7 @@ async function requestOllamaChat(model, messages, optionOverrides = {}, runtimeC
         data?.choices?.[0]?.text ||
         "",
     ).trim();
-    const text = stripModelReasoningArtifacts(rawText);
+    const text = stripModelReasoningArtifacts(rawText).trim();
     if (!text) {
       throw new Error("Пустой ответ от модели");
     }
@@ -655,6 +648,16 @@ async function streamOllamaChat(
   const signal = combineAbortSignals(abortSignal, timeoutController.signal);
 
   let accumulated = "";
+  let lastVisible = "";
+
+  const emitVisibleStream = () => {
+    const visible = stripModelReasoningArtifacts(accumulated, { streaming: true });
+    const newPart = visible.slice(lastVisible.length);
+    lastVisible = visible;
+    if (newPart && typeof onDelta === "function") {
+      onDelta(newPart, visible);
+    }
+  };
 
   try {
     const options = {
@@ -753,7 +756,7 @@ async function streamOllamaChat(
             );
             if (delta) {
               accumulated += delta;
-              if (typeof onDelta === "function") onDelta(delta, accumulated);
+              emitVisibleStream();
             }
           } catch {
             /* ignore malformed SSE chunk */
@@ -769,7 +772,7 @@ async function streamOllamaChat(
             const delta = String(parsed?.message?.content || "");
             if (delta) {
               accumulated += delta;
-              if (typeof onDelta === "function") onDelta(delta, accumulated);
+              emitVisibleStream();
             }
           } catch {
             /* ignore malformed NDJSON chunk */
@@ -778,7 +781,7 @@ async function streamOllamaChat(
       }
     }
 
-    const text = stripModelReasoningArtifacts(accumulated);
+    const text = stripModelReasoningArtifacts(accumulated).trim();
     if (!text) {
       throw new Error("Пустой ответ от модели");
     }
@@ -1681,7 +1684,7 @@ async function streamBotReplyPlain({
     onDelta,
     signal,
   );
-  return stripModelReasoningArtifacts(String(text || "").trim());
+  return stripModelReasoningArtifacts(String(text || "").trim()).trim();
 }
 
 /** Потоковая генерация + постобработка (проверка «не писать за {{user}}» и правки). */

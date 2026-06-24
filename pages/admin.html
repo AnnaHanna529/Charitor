@@ -150,6 +150,28 @@
         return div.innerHTML;
       }
 
+      function setImageWithFallback(
+        imgElement,
+        value,
+        fallback = "/img/icon.svg",
+      ) {
+        if (!imgElement) return;
+        const src = String(value || "").trim();
+        imgElement.src = src || fallback;
+        imgElement.onerror = () => {
+          imgElement.onerror = null;
+          imgElement.src = fallback;
+        };
+      }
+
+      function formatBotVisibilityLabel(visibility) {
+        return isBotPrivateVisibility(visibility) ? "Приватный" : "Публичный";
+      }
+
+      function isBotPrivateVisibility(visibility) {
+        return String(visibility || "").trim().toLowerCase() === "private";
+      }
+
       function translateTag(tag) {
         const key = String(tag || "").trim().toLowerCase().replace(/\s+/g, "_");
         const map = {
@@ -251,13 +273,11 @@
           const card = document.createElement("article");
           card.className = "admin-card";
           const isAdminAccount = Number(user.role_id) === 2;
-          const avatarSrc =
-            String(user.avatar_url || "").trim() || "/img/icon.svg";
 
           card.innerHTML = `
           <div class="admin-card-body">
             <div class="user-head-admin">
-              <img src="${escapeHtml(avatarSrc)}" alt="${escapeHtml(user.username || "user")}" class="user-avatar-admin" />
+              <img src="/img/icon.svg" alt="" class="user-avatar-admin user-avatar-admin-img" />
               <div class="user-head-meta">
                 <strong>@${escapeHtml(user.username || "unknown")}</strong>
                 <span>${escapeHtml(user.email || "")}</span>
@@ -307,6 +327,11 @@
             }
           </div>
         `;
+
+          setImageWithFallback(
+            card.querySelector(".user-avatar-admin-img"),
+            user.avatar_url,
+          );
 
           if (!isAdminAccount) {
             card
@@ -425,7 +450,7 @@
           card.innerHTML = `
           <div class="bot-image-admin">
             <a href="/pages/bot.html?id=${bot.id}">
-              <img src="${escapeHtml(bot.avatar_url || "/img/icon.svg")}" alt="bot" />
+              <img class="bot-avatar-admin-img" src="/img/icon.svg" alt="" />
             </a>
           </div>
 
@@ -439,7 +464,7 @@
                 </h3>
                 <p>Автор: <a href="${authorProfileUrl}" class="admin-inline-link">${escapeHtml(authorName)}</a></p>
               </div>
-              <span class="bot-badge-admin">${escapeHtml(bot.visibility || "public")}</span>
+              <span class="bot-badge-admin">${escapeHtml(formatBotVisibilityLabel(bot.visibility))}</span>
             </div>
 
             <div class="bot-status-row">
@@ -463,6 +488,11 @@
             </div>
           </div>
         `;
+
+          setImageWithFallback(
+            card.querySelector(".bot-avatar-admin-img"),
+            bot.avatar_url,
+          );
 
           card
             .querySelector(".toggle-block-bot-btn")

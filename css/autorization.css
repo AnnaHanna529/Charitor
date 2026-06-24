@@ -104,6 +104,14 @@ nav {
   margin-bottom: 28px;
 }
 
+.auth-hint {
+  margin: -12px 0 20px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #d8ccff;
+  text-align: center;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;

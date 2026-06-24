@@ -13,6 +13,7 @@
   <script src="/js/roleplayParagraphs.js?v=charitor-quotes-fix2"></script>
   <script src="/js/mergeContinuation.js?v=charitor-continue-merge-2"></script>
   <script src="/js/chatTokens.js"></script>
+  <script src="/js/reasoningStrip.js"></script>
 </head>
 
 <body>
@@ -618,7 +619,8 @@
     }
 
     function formatStreamPlainText(text) {
-      return applyChatTokens(normalizeChatMessageText(text));
+      const stripped = stripModelReasoningArtifacts(text, { streaming: true });
+      return applyChatTokens(normalizeChatMessageText(stripped));
     }
 
     function isMessagesBoxNearBottom(threshold = 96) {
@@ -644,7 +646,9 @@
     function setBotBubbleContent(bubble, text, { skipStructure = false } = {}) {
       if (!bubble) return;
       bubble.classList.remove("message-bubble--streaming", "loading");
-      const displayText = applyChatTokens(normalizeChatMessageText(text));
+      const displayText = applyChatTokens(
+        normalizeChatMessageText(stripModelReasoningArtifacts(text).trim()),
+      );
       bubble.innerHTML = `<div class="stream-live">${formatBotMessageHtml(displayText, { skipStructure })}</div>`;
     }
 
@@ -657,6 +661,17 @@
       bubble.classList.add("message-bubble--streaming");
 
       const displayText = formatStreamPlainText(text);
+      if (!String(displayText || "").trim()) {
+        bubble.classList.add("loading");
+        bubble.classList.remove("message-bubble--streaming");
+        bubble.innerHTML = buildTypingDotsHtml();
+        if (scroll && isMessagesBoxNearBottom()) {
+          messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
+        return;
+      }
+
+      bubble.classList.remove("loading");
       const body = ensureStreamBubbleShell(bubble);
 
       let textNode = body.firstChild;
@@ -2188,28 +2203,52 @@
       rerenderMessages();
     }
 
-    function personaStubFromNumericId(rawId) {
-      const n = Number(rawId);
-      if (!Number.isFinite(n) || n <= 0) return null;
-      return {
-        id: n,
-        name: "Персона",
-        description: "",
-        persona_prompt: "",
-        avatar_url: "",
-      };
+    /** id для API: из объекта персоны или из ?persona= (иначе запрос уйдёт без persona_id и откроется чужой NULL-чат) */
+    function getPersonaIdFromUrl() {
+      try {
+        const raw = new URL(window.location.href).searchParams.get("persona");
+        if (raw == null || String(raw).trim() === "") return null;
+        const n = Number(raw);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      } catch {
+        return null;
+      }
     }
 
-    /** id для API: из объекта персоны или из ?persona= (иначе запрос уйдёт без persona_id и откроется чужой NULL-чат) */
     function getPersonaIdForApi() {
       if (activePersona?.id != null && Number.isFinite(Number(activePersona.id))) {
         return Number(activePersona.id);
       }
-      if (urlPersonaId != null && String(urlPersonaId).trim() !== "") {
-        const n = Number(urlPersonaId);
-        if (Number.isFinite(n) && n > 0) return n;
+      return getPersonaIdFromUrl();
+    }
+
+    function clearInvalidPersonaFromUrl(savedPersonaId) {
+      if (savedPersonaId == null || String(savedPersonaId).trim() === "") return;
+      localStorage.removeItem(`activePersonaId_${userId}`);
+      try {
+        const u = new URL(window.location.href);
+        if (u.searchParams.get("persona") === String(savedPersonaId)) {
+          u.searchParams.delete("persona");
+          history.replaceState(null, "", u.pathname + u.search + u.hash);
+        }
+      } catch {
+        /* ignore */
       }
-      return null;
+    }
+
+    function maybePromptPersonaAfterLoad(chat) {
+      const chatPersonaNull =
+        chat?.persona_id == null || chat?.persona_id === "";
+      const hasMessages = messageRows.length > 0;
+      if (
+        chatPersonaNull &&
+        hasMessages &&
+        personas.length > 0 &&
+        !isRestrictedBot
+      ) {
+        showToast("Выберите персону, чтобы продолжить этот чат");
+        openPersonaModal();
+      }
     }
 
     async function loadPersonas() {
@@ -2224,9 +2263,8 @@
         personas = Array.isArray(data) ? data : [];
 
         const savedPersonaId =
-          urlPersonaId != null && String(urlPersonaId).trim() !== ""
-            ? urlPersonaId
-            : localStorage.getItem(`activePersonaId_${userId}`);
+          getPersonaIdFromUrl() ??
+          localStorage.getItem(`activePersonaId_${userId}`);
 
         const foundPersona = personas.find((persona) => {
           return Number(persona.id) === Number(savedPersonaId);
@@ -2238,21 +2276,19 @@
           savedPersonaId != null &&
           String(savedPersonaId).trim() !== ""
         ) {
-          const stub = personaStubFromNumericId(savedPersonaId);
-          if (stub) setActivePersona(stub);
-          else setActivePersona(null);
+          clearInvalidPersonaFromUrl(savedPersonaId);
+          setActivePersona(null);
         } else {
           setActivePersona(null);
         }
       } catch {
         personas = [];
         const fallbackId =
-          urlPersonaId != null && String(urlPersonaId).trim() !== ""
-            ? urlPersonaId
-            : localStorage.getItem(`activePersonaId_${userId}`);
-        const stub = personaStubFromNumericId(fallbackId);
-        if (stub) setActivePersona(stub);
-        else setActivePersona(null);
+          getPersonaIdFromUrl() ?? localStorage.getItem(`activePersonaId_${userId}`);
+        if (fallbackId != null && String(fallbackId).trim() !== "") {
+          clearInvalidPersonaFromUrl(fallbackId);
+        }
+        setActivePersona(null);
       }
     }
 
@@ -3262,6 +3298,8 @@
         } catch {
           /* ignore */
         }
+
+        maybePromptPersonaAfterLoad(data.chat);
       } catch (error) {
         renderEmpty(error.message || "Ошибка загрузки чата");
         showToast(error.message || "Ошибка загрузки чата");

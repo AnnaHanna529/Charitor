@@ -31,11 +31,6 @@
             <path d="M4 4h12v9H7l-3 3V4zm14 0h2v12h-6v-2h4V4z" />
           </svg>
         </a>
-        <button class="icon-btn icon-btn--plain" type="button" aria-label="Уведомления">
-          <svg class="topbar-icon-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-5h-1V11a6 6 0 1 0-12 0v6H5a1 1 0 0 0 0 2h14a1 1 0 1 0 0-2z" />
-          </svg>
-        </button>
 
         <a href="/pages/profile.html" class="profile-mini" aria-label="Профиль">
           <img id="topAvatar" src="/img/icon.svg" alt="avatar" />
@@ -533,18 +528,12 @@
         }
       }
 
-      function setImageWithFallback(
-        imgElement,
-        value,
-        fallback = "/img/icon.svg",
-      ) {
-        if (value && String(value).trim()) {
-          imgElement.src = value;
-        } else {
-          imgElement.src = fallback;
-        }
-
+      function setImageWithFallback(imgElement, value, fallback = "/img/icon.svg") {
+        if (!imgElement) return;
+        const src = String(value || "").trim();
+        imgElement.src = src || fallback;
         imgElement.onerror = () => {
+          imgElement.onerror = null;
           imgElement.src = fallback;
         };
       }

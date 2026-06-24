@@ -161,11 +161,16 @@ body {
 
 .preview-sidebar {
   padding: 14px;
+  position: sticky;
+  top: 80px;
+  align-self: start;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .preview-sticky {
-  position: sticky;
-  top: 88px;
+  position: static;
 }
 
 .page-head {
@@ -708,8 +713,10 @@ body {
     max-width: 780px;
   }
 
-  .preview-sticky {
+  .preview-sidebar {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 

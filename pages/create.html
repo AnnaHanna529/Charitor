@@ -6,9 +6,10 @@
     <title>Создание персонажа — Charitor.ai</title>
     <link rel="stylesheet" href="/css/general.css" />
     <link rel="stylesheet" href="/css/create.css" />
-    <script src="/js/runtime-config.js"></script>
-    <script src="/js/api-base.js"></script>
-    <script src="/js/notifications.js" defer></script>
+  <script src="/js/runtime-config.js"></script>
+  <script src="/js/api-base.js"></script>
+  <script src="/js/auth-next.js"></script>
+  <script src="/js/notifications.js" defer></script>
     <script src="/js/siteDialogs.js" defer></script>
   </head>
   <body>
@@ -292,13 +293,6 @@
                 <div id="previewTags" class="preview-tags">
                   <span>Нет тегов</span>
                 </div>
-
-                <div class="preview-actions">
-                  <button type="button" class="preview-btn primary">
-                    Продолжить общение
-                  </button>
-                  <button type="button" class="preview-btn">Начать чат</button>
-                </div>
               </div>
             </article>
           </div>
@@ -334,7 +328,9 @@
 
       const savedUser = JSON.parse(localStorage.getItem("user"));
       if (!savedUser) {
-        window.location.href = "/pages/autorization.html";
+        AuthNext.redirectToAuth("/pages/create.html" + window.location.search, {
+          reason: "create",
+        });
       }
 
       const params = new URLSearchParams(window.location.search);

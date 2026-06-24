@@ -155,6 +155,24 @@ assert(
   })(),
 );
 
+const { stripModelReasoningArtifacts } = require("../js/reasoningStrip");
+const THINK_OPEN = "<" + "think>";
+const THINK_CLOSE = "<" + "/think>";
+
+assert(
+  "streaming strip hides incomplete think block",
+  stripModelReasoningArtifacts(
+    THINK_OPEN + "Шаг 1: план\nШаг 2: дальше",
+    { streaming: true },
+  ) === "",
+);
+assert(
+  "final strip keeps reply after think block",
+  stripModelReasoningArtifacts(
+    THINK_OPEN + "plan" + THINK_CLOSE + '\n\n"Привет."',
+  ) === '\n\n"Привет."',
+);
+
 if (failed > 0) {
   console.error(`\n${failed} проверок не прошло.`);
   process.exit(1);

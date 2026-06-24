@@ -183,4 +183,195 @@
   })();
 
   window.notifyUser = notify;
+
+  // Центр уведомлений о событиях (подписки, избранное, новые персонажи).
+  (function setupEventNotificationsCenter() {
+    const path = window.location.pathname.toLowerCase();
+    const blocked =
+      path.endsWith("/index.html") ||
+      path.endsWith("/autorization.html") ||
+      path.endsWith("/register.html") ||
+      path.includes("/pages/docs/");
+
+    if (blocked) return;
+
+    const savedUserRaw = localStorage.getItem("user");
+    if (!savedUserRaw) return;
+
+    let savedUser;
+    try {
+      savedUser = JSON.parse(savedUserRaw);
+    } catch {
+      return;
+    }
+    if (!savedUser?.id) return;
+
+    const host =
+      document.querySelector(".topbar-right") ||
+      document.querySelector(".chat-topbar-right");
+    if (!host || host.querySelector(".event-notify-wrap")) return;
+
+    const apiBase =
+      typeof window.API_BASE === "string" && window.API_BASE
+        ? window.API_BASE
+        : "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "event-notify-wrap";
+    wrap.innerHTML = `
+      <button type="button" class="top-icon event-notify-btn" aria-label="Уведомления" aria-expanded="false">
+        <svg class="topbar-icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 22a2.2 2.2 0 0 0 2.15-1.75H9.85A2.2 2.2 0 0 0 12 22zm6.3-5.5V11a6.3 6.3 0 0 0-5-6.16V4a1 1 0 1 0-2 0v.84A6.3 6.3 0 0 0 6.7 11v5.5L5 18.2h14l-1.7-1.7z" fill="currentColor"/>
+        </svg>
+        <span class="event-notify-badge hidden" aria-hidden="true">0</span>
+      </button>
+      <div class="event-notify-panel hidden" role="dialog" aria-label="Уведомления о событиях">
+        <div class="event-notify-head">
+          <strong>Уведомления</strong>
+          <button type="button" class="event-notify-read-all">Прочитать все</button>
+        </div>
+        <div class="event-notify-list"></div>
+      </div>
+    `;
+
+    const profileLink = host.querySelector(".profile-mini");
+    if (profileLink) {
+      host.insertBefore(wrap, profileLink);
+    } else {
+      host.appendChild(wrap);
+    }
+
+    const btn = wrap.querySelector(".event-notify-btn");
+    const panel = wrap.querySelector(".event-notify-panel");
+    const list = wrap.querySelector(".event-notify-list");
+    const badge = wrap.querySelector(".event-notify-badge");
+    const readAllBtn = wrap.querySelector(".event-notify-read-all");
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text ?? "";
+      return div.innerHTML;
+    }
+
+    function formatWhen(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    function getNotificationLink(item) {
+      if (item.type === "follow" && item.actor_id) {
+        return `/pages/profile.html?authorId=${encodeURIComponent(item.actor_id)}`;
+      }
+      if (item.bot_id) {
+        return `/pages/bot.html?id=${encodeURIComponent(item.bot_id)}`;
+      }
+      return "";
+    }
+
+    function setPanelOpen(open) {
+      panel.classList.toggle("hidden", !open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function renderNotifications(items, unreadCount) {
+      const count = Number(unreadCount || 0);
+      badge.textContent = String(count);
+      badge.classList.toggle("hidden", count <= 0);
+
+      if (!items.length) {
+        list.innerHTML = `<p class="event-notify-empty">Пока нет уведомлений</p>`;
+        return;
+      }
+
+      list.innerHTML = items
+        .map((item) => {
+          const href = getNotificationLink(item);
+          const unread = Number(item.is_read) === 0;
+          const inner = `
+            <span class="event-notify-item-text">${escapeHtml(item.message || "Событие")}</span>
+            <span class="event-notify-item-time">${escapeHtml(formatWhen(item.created_at))}</span>
+          `;
+          if (href) {
+            return `<a href="${href}" class="event-notify-item${unread ? " is-unread" : ""}" data-id="${Number(item.id)}">${inner}</a>`;
+          }
+          return `<div class="event-notify-item${unread ? " is-unread" : ""}" data-id="${Number(item.id)}">${inner}</div>`;
+        })
+        .join("");
+    }
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch(
+          `${apiBase}/event-notifications/${encodeURIComponent(savedUser.id)}?limit=20`,
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        renderNotifications(data.notifications || [], data.unread_count || 0);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function markAllRead() {
+      try {
+        await fetch(
+          `${apiBase}/event-notifications/${encodeURIComponent(savedUser.id)}/read`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          },
+        );
+        await loadNotifications();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = panel.classList.contains("hidden");
+      setPanelOpen(willOpen);
+      if (willOpen) {
+        loadNotifications();
+      }
+    });
+
+    readAllBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      markAllRead();
+    });
+
+    list.addEventListener("click", (event) => {
+      const target = event.target.closest(".event-notify-item[data-id]");
+      if (!target) return;
+      const notificationId = Number(target.dataset.id);
+      if (!Number.isFinite(notificationId) || notificationId < 1) return;
+      fetch(
+        `${apiBase}/event-notifications/${encodeURIComponent(savedUser.id)}/read`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notification_id: notificationId }),
+        },
+      ).catch(() => {});
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!wrap.contains(event.target)) {
+        setPanelOpen(false);
+      }
+    });
+
+    loadNotifications();
+    setInterval(loadNotifications, 60000);
+    window.refreshEventNotifications = loadNotifications;
+  })();
 })();

@@ -161,6 +161,27 @@
   let myBotsData = [];
   let allBotsData = [];
   const favoriteBotIds = new Set();
+  const followingAuthorIds = new Set();
+
+  async function loadFollowingAuthorIds() {
+    followingAuthorIds.clear();
+    if (!savedUser?.id) return;
+    try {
+      const response = await fetch(
+        `${API_BASE}/user-follows/following/${encodeURIComponent(savedUser.id)}`,
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      (data.following_ids || []).forEach((id) => {
+        const n = Number(id);
+        if (Number.isFinite(n) && n > 0) {
+          followingAuthorIds.add(n);
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  }
 
   function getFavoriteBotKey(botId) {
     return `favoriteBot_${savedUser.id}_${botId}`;
@@ -562,28 +583,9 @@ function renderBots(items) {
     cardsGrid.appendChild(card);
   });
 }
-  function parseFollowersValue(raw) {
-    try {
-      const parsed = JSON.parse(raw || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
   function isFollowingAuthor(bot) {
-    const currentUserId = String(savedUser.id);
-    const byIdKey =
-      bot.creator_id != null ? `profileFollowers_author_${bot.creator_id}` : null;
-    const byNameKey = `profileFollowers_author_name_${String(bot.author || "unknown").toLowerCase()}`;
-
-    if (byIdKey) {
-      const followersById = parseFollowersValue(localStorage.getItem(byIdKey));
-      if (followersById.some((id) => String(id) === currentUserId)) return true;
-    }
-
-    const followersByName = parseFollowersValue(localStorage.getItem(byNameKey));
-    return followersByName.some((id) => String(id) === currentUserId);
+    const creatorId = Number(bot?.creator_id);
+    return Number.isFinite(creatorId) && creatorId > 0 && followingAuthorIds.has(creatorId);
   }
 
   function sortBots(items) {
@@ -768,6 +770,7 @@ function renderBots(items) {
   (async () => {
     await loadMyChats();
     await loadFavoriteBotIds();
+    await loadFollowingAuthorIds();
     await loadMyBots();
     await loadAllBots();
     const tab = new URLSearchParams(window.location.search).get("tab");

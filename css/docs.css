@@ -1,19 +1,17 @@
-.docs-back-btn {
-  position: fixed;
-  top: 16px;
-  left: 16px;
-  z-index: 20;
-}
-
 .docs-hub-nav {
   box-sizing: border-box;
   max-width: 960px;
-  margin: 28px auto 0;
+  margin: 20px auto 0;
   padding: 0 20px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.docs-back-btn {
+  flex-shrink: 0;
+  margin: 0;
 }
 
 .docs-hub-link {
@@ -131,4 +129,30 @@ main.docs-page {
   );
   color: #fff;
   font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .docs-hub-nav {
+    margin-top: 12px;
+    padding: 0 12px;
+    gap: 6px;
+  }
+
+  .docs-hub-link {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  main.docs-page {
+    margin-top: 14px;
+    padding: 0 12px;
+  }
+
+  .docs-card {
+    padding: 18px 16px;
+  }
+
+  .docs-card h1 {
+    font-size: 26px;
+  }
 }

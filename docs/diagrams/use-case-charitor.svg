@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
+  <defs>
+    <marker id="arrow-solid" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#111"/>
+    </marker>
+    <marker id="gen-triangle" markerWidth="16" markerHeight="16" refX="14" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L16,8 L0,16 Z" fill="#fff" stroke="#111" stroke-width="1.4"/>
+    </marker>
+  </defs>
+
+  <rect x="20" y="20" width="1240" height="880" fill="#fff" stroke="#111" stroke-width="1.5"/>
+  <text x="640" y="52" text-anchor="middle" font-size="18" font-weight="700" font-family="Arial, sans-serif">Charitor.ai - &#1076;&#1080;&#1072;&#1075;&#1088;&#1072;&#1084;&#1084;&#1072; &#1087;&#1088;&#1077;&#1094;&#1077;&#1076;&#1077;&#1085;&#1090;&#1086;&#1074;</text>
+
+  <g id="actor-guest">
+    <circle cx="95" cy="110" r="14" fill="none" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="124" x2="95" y2="168" stroke="#111" stroke-width="1.5"/>
+    <line x1="65" y1="142" x2="125" y2="142" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="168" x2="70" y2="208" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="168" x2="120" y2="208" stroke="#111" stroke-width="1.5"/>
+    <text x="95" y="232" text-anchor="middle" font-size="14" font-weight="600" font-family="Arial, sans-serif">&#1043;&#1086;&#1089;&#1090;&#1100;</text>
+  </g>
+
+  <g id="actor-user">
+    <circle cx="95" cy="380" r="14" fill="none" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="394" x2="95" y2="438" stroke="#111" stroke-width="1.5"/>
+    <line x1="65" y1="412" x2="125" y2="412" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="438" x2="70" y2="478" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="438" x2="120" y2="478" stroke="#111" stroke-width="1.5"/>
+    <text x="95" y="502" text-anchor="middle" font-size="14" font-weight="600" font-family="Arial, sans-serif">&#1055;&#1086;&#1083;&#1100;&#1079;&#1086;&#1074;&#1072;&#1090;&#1077;&#1083;&#1100;</text>
+  </g>
+
+  <g id="actor-admin">
+    <circle cx="95" cy="760" r="14" fill="none" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="774" x2="95" y2="818" stroke="#111" stroke-width="1.5"/>
+    <line x1="65" y1="792" x2="125" y2="792" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="818" x2="70" y2="858" stroke="#111" stroke-width="1.5"/>
+    <line x1="95" y1="818" x2="120" y2="858" stroke="#111" stroke-width="1.5"/>
+    <text x="95" y="882" text-anchor="middle" font-size="14" font-weight="600" font-family="Arial, sans-serif">&#1040;&#1076;&#1084;&#1080;&#1085;&#1080;&#1089;&#1090;&#1088;&#1072;&#1090;&#1086;&#1088;</text>
+  </g>
+
+  <line x1="95" y1="488" x2="95" y2="248" stroke="#111" stroke-width="1.5" marker-end="url(#gen-triangle)"/>
+  <line x1="95" y1="748" x2="95" y2="518" stroke="#111" stroke-width="1.5" marker-end="url(#gen-triangle)"/>
+
+  <ellipse cx="330" cy="100" rx="112" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="330" y="105" text-anchor="middle" font-size="13" font-family="Arial, sans-serif">&#1055;&#1088;&#1086;&#1089;&#1084;&#1086;&#1090;&#1088; &#1083;&#1077;&#1085;&#1076;&#1080;&#1085;&#1075;&#1072;</text>
+  <ellipse cx="330" cy="155" rx="82" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="330" y="160" text-anchor="middle" font-size="13" font-family="Arial, sans-serif">&#1056;&#1077;&#1075;&#1080;&#1089;&#1090;&#1088;&#1072;&#1094;&#1080;&#1103;</text>
+  <ellipse cx="330" cy="210" rx="82" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="330" y="215" text-anchor="middle" font-size="13" font-family="Arial, sans-serif">&#1040;&#1074;&#1090;&#1086;&#1088;&#1080;&#1079;&#1072;&#1094;&#1080;&#1103;</text>
+  <line x1="118" y1="135" x2="215" y2="105" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="155" x2="245" y2="155" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="175" x2="245" y2="210" stroke="#111" stroke-width="1.2"/>
+
+  <!-- User base use cases (left) -->
+  <ellipse cx="400" cy="290" rx="118" ry="28" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="295" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1059;&#1087;&#1088;&#1072;&#1074;&#1083;&#1077;&#1085;&#1080;&#1077; &#1087;&#1088;&#1086;&#1092;&#1080;&#1083;&#1077;&#1084;</text>
+
+  <ellipse cx="400" cy="350" rx="138" ry="32" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="344" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1057;&#1086;&#1079;&#1076;&#1072;&#1085;&#1080;&#1077; / &#1080;&#1079;&#1084;&#1077;&#1085;&#1077;&#1085;&#1080;&#1077; /</text>
+  <text x="400" y="360" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1091;&#1076;&#1072;&#1083;&#1077;&#1085;&#1080;&#1077; &#1087;&#1077;&#1088;&#1089;&#1086;&#1085;</text>
+
+  <ellipse cx="400" cy="420" rx="138" ry="32" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="414" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1057;&#1086;&#1079;&#1076;&#1072;&#1085;&#1080;&#1077; / &#1080;&#1079;&#1084;&#1077;&#1085;&#1077;&#1085;&#1080;&#1077; /</text>
+  <text x="400" y="430" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1091;&#1076;&#1072;&#1083;&#1077;&#1085;&#1080;&#1077; &#1087;&#1077;&#1088;&#1089;&#1086;&#1085;&#1072;&#1078;&#1077;&#1081;</text>
+
+  <ellipse cx="400" cy="490" rx="115" ry="28" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="495" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1050;&#1072;&#1090;&#1072;&#1083;&#1086;&#1075; &#1080; &#1087;&#1086;&#1080;&#1089;&#1082; &#1073;&#1086;&#1090;&#1086;&#1074;</text>
+
+  <ellipse cx="400" cy="555" rx="92" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="560" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1042;&#1077;&#1076;&#1077;&#1085;&#1080;&#1077; &#1095;&#1072;&#1090;&#1072;</text>
+
+  <ellipse cx="400" cy="615" rx="112" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="620" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1055;&#1088;&#1086;&#1089;&#1086;&#1090;&#1088; &#1080;&#1089;&#1090;&#1086;&#1088;&#1080;&#1080; &#1095;&#1072;&#1090;&#1086;&#1074;</text>
+
+  <ellipse cx="400" cy="740" rx="88" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="400" y="745" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1055;&#1086;&#1076;&#1072;&#1095;&#1072; &#1078;&#1072;&#1083;&#1086;&#1073;&#1099;</text>
+
+  <line x1="118" y1="380" x2="282" y2="290" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="385" x2="262" y2="350" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="390" x2="262" y2="420" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="395" x2="285" y2="490" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="400" x2="308" y2="555" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="405" x2="288" y2="615" stroke="#111" stroke-width="1.2"/>
+  <line x1="118" y1="410" x2="312" y2="740" stroke="#111" stroke-width="1.2"/>
+
+  <!-- Secondary use cases (right of base) -->
+  <ellipse cx="690" cy="420" rx="108" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="425" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1053;&#1072;&#1089;&#1090;&#1088;&#1086;&#1081;&#1082;&#1072; &#1074;&#1080;&#1076;&#1080;&#1084;&#1086;&#1089;&#1090;&#1080;</text>
+
+  <ellipse cx="690" cy="475" rx="100" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="480" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1048;&#1079;&#1073;&#1088;&#1072;&#1085;&#1085;&#1086;&#1077; &#1073;&#1086;&#1090;&#1086;&#1074;</text>
+
+  <ellipse cx="690" cy="530" rx="108" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="535" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1054;&#1090;&#1087;&#1088;&#1072;&#1074;&#1082;&#1072; &#1089;&#1086;&#1086;&#1073;&#1097;&#1077;&#1085;&#1080;&#1081;</text>
+
+  <ellipse cx="690" cy="585" rx="100" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="590" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1056;&#1077;&#1075;&#1077;&#1085;&#1077;&#1088;&#1072;&#1094;&#1080;&#1103; &#1086;&#1090;&#1074;&#1077;&#1090;&#1072;</text>
+
+  <ellipse cx="690" cy="640" rx="108" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="645" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1056;&#1077;&#1076;&#1072;&#1082;&#1090;&#1080;&#1088;&#1086;&#1074;&#1072;&#1085;&#1080;&#1077; &#1089;&#1086;&#1086;&#1073;&#1097;&#1077;&#1085;&#1080;&#1103;</text>
+
+  <ellipse cx="690" cy="695" rx="108" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="690" y="691" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1053;&#1072;&#1089;&#1090;&#1088;&#1086;&#1081;&#1082;&#1072; LLM-</text>
+  <text x="690" y="705" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1087;&#1088;&#1086;&#1082;&#1089;&#1080; &#1074; &#1095;&#1072;&#1090;&#1077;</text>
+
+  <!-- include -->
+  <line x1="538" y1="420" x2="582" y2="420" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="548" y="410" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;include&gt;&gt;</text>
+
+  <line x1="492" y1="555" x2="582" y2="530" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="520" y="538" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- extend: extension -> base -->
+  <line x1="590" y1="475" x2="515" y2="490" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="535" y="468" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;extend&gt;&gt;</text>
+
+  <line x1="590" y1="585" x2="492" y2="560" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="530" y="568" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;extend&gt;&gt;</text>
+
+  <line x1="590" y1="640" x2="492" y2="562" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="530" y="618" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;extend&gt;&gt;</text>
+
+  <polyline points="590,695 560,695 560,560 492,560" fill="none" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="545" y="688" font-size="11" fill="#333" font-family="Arial, sans-serif">&lt;&lt;extend&gt;&gt;</text>
+
+  <!-- Admin use cases (far right, no link to user UCs) -->
+  <ellipse cx="1080" cy="680" rx="112" ry="26" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="1080" y="685" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1054;&#1073;&#1088;&#1072;&#1073;&#1086;&#1090;&#1082;&#1072; &#1078;&#1072;&#1083;&#1086;&#1073;</text>
+
+  <ellipse cx="1080" cy="750" rx="125" ry="30" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="1080" y="744" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1041;&#1083;&#1086;&#1082;&#1080;&#1088;&#1086;&#1074;&#1082;&#1072; / &#1091;&#1076;&#1072;&#1083;&#1077;&#1085;&#1080;&#1077;</text>
+  <text x="1080" y="760" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1087;&#1086;&#1083;&#1100;&#1079;&#1086;&#1074;&#1072;&#1090;&#1077;&#1083;&#1077;&#1081;</text>
+
+  <ellipse cx="1080" cy="825" rx="125" ry="30" fill="#fff" stroke="#111" stroke-width="1.3"/>
+  <text x="1080" y="819" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1041;&#1083;&#1086;&#1082;&#1080;&#1088;&#1086;&#1074;&#1082;&#1072; / &#1091;&#1076;&#1072;&#1083;&#1077;&#1085;&#1080;&#1077;</text>
+  <text x="1080" y="835" text-anchor="middle" font-size="12" font-family="Arial, sans-serif">&#1087;&#1077;&#1088;&#1089;&#1086;&#1085;&#1072;&#1078;&#1077;&#1081;</text>
+
+  <!-- Admin: only 3 lines, routed along right edge -->
+  <polyline points="118,760 1040,760 1040,680 968,680" fill="none" stroke="#111" stroke-width="1.2"/>
+  <polyline points="118,770 1050,770 1050,750 968,750" fill="none" stroke="#111" stroke-width="1.2"/>
+  <polyline points="118,780 1050,825 968,825" fill="none" stroke="#111" stroke-width="1.2"/>
+
+  <rect x="860" y="80" width="380" height="168" fill="#fafafa" stroke="#ccc" stroke-width="1"/>
+  <text x="880" y="105" font-size="13" font-weight="700" font-family="Arial, sans-serif">&#1059;&#1089;&#1083;&#1086;&#1074;&#1085;&#1099;&#1077; &#1086;&#1073;&#1086;&#1079;&#1085;&#1072;&#1095;&#1077;&#1085;&#1080;&#1103;</text>
+  <line x1="880" y1="125" x2="930" y2="125" stroke="#111" stroke-width="1.2"/>
+  <text x="940" y="129" font-size="12" font-family="Arial, sans-serif">&#1089;&#1074;&#1103;&#1079;&#1100; &#1072;&#1082;&#1090;&#1086;&#1088;&#1072; &#1089; &#1087;&#1088;&#1077;&#1094;&#1077;&#1076;&#1077;&#1085;&#1090;&#1086;&#1084;</text>
+  <line x1="880" y1="148" x2="930" y2="148" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="940" y="152" font-size="12" font-family="Arial, sans-serif">&lt;&lt;include&gt;&gt;: &#1086;&#1090; &#1073;&#1072;&#1079;&#1086;&#1074;&#1086;&#1075;&#1086; &#1082; &#1074;&#1082;&#1083;&#1102;&#1095;&#1077;&#1085;&#1080;&#1102;</text>
+  <line x1="930" y1="168" x2="880" y2="168" stroke="#111" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#arrow-solid)"/>
+  <text x="940" y="172" font-size="12" font-family="Arial, sans-serif">&lt;&lt;extend&gt;&gt;: &#1086;&#1090; &#1088;&#1072;&#1089;&#1096;&#1080;&#1088;&#1077;&#1085;&#1080;&#1103; &#1082; &#1073;&#1072;&#1079;&#1086;&#1074;&#1086;&#1084;&#1091;</text>
+  <line x1="880" y1="195" x2="930" y2="195" stroke="#111" stroke-width="1.5" marker-end="url(#gen-triangle)"/>
+  <text x="940" y="199" font-size="12" font-family="Arial, sans-serif">&#1086;&#1073;&#1086;&#1073;&#1097;&#1077;&#1085;&#1080;&#1077; &#1072;&#1082;&#1090;&#1086;&#1088;&#1072; (&#9655; &#1082; &#1088;&#1086;&#1076;&#1080;&#1090;&#1077;&#1083;&#1102;)</text>
+  <text x="880" y="225" font-size="11" fill="#444" font-family="Arial, sans-serif">&#1040;&#1076;&#1084;&#1080;&#1085;&#1080;&#1089;&#1090;&#1088;&#1072;&#1090;&#1086;&#1088; &#1085;&#1072;&#1089;&#1083;&#1077;&#1076;&#1091;&#1077;&#1090; &#1087;&#1088;&#1077;&#1094;&#1077;&#1076;&#1077;&#1085;&#1090;&#1099; &#1055;&#1086;&#1083;&#1100;&#1079;&#1086;&#1074;&#1072;&#1090;&#1077;&#1083;&#1103;, &#1089;&#1074;&#1103;&#1079;&#1080; &#1089; &#1078;&#1072;&#1083;&#1086;&#1073;&#1072;&#1084;&#1080; &#1085;&#1077;&#1090;.</text>
+</svg>
