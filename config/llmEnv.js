@@ -31,10 +31,9 @@ function resolveLlmApiKey() {
   );
 }
 
-/** Встроенная модель для всех пользователей: ollama (бесплатно) | cloud (API из .env) */
+/** Встроенная модель — только Ollama + Qwen на сервере. Облако/Chutes — вкладка «Прокси». */
 function getBuiltinLlmMode() {
-  const mode = String(process.env.BUILTIN_LLM_MODE || "ollama").trim().toLowerCase();
-  return mode === "cloud" ? "cloud" : "ollama";
+  return "ollama";
 }
 
 function getOllamaBaseUrl() {
@@ -59,29 +58,8 @@ function getServerCloudLlmRuntimeConfig() {
   };
 }
 
-/** cloud = Chutes/API из .env; ollama = локальный Ollama на сервере */
-function getEffectiveBuiltinBackend() {
-  const configured = getBuiltinLlmMode();
-  const cloud = getServerCloudLlmRuntimeConfig();
-  const hasCloud = Boolean(cloud.proxy_url && cloud.api_key);
-
-  if (configured === "cloud") {
-    return "cloud";
-  }
-  if (ollamaHealthCache.ready) {
-    return "ollama";
-  }
-  if (hasCloud) {
-    return "cloud";
-  }
-  return "ollama";
-}
-
 /** Конфиг «Встроенная» в чате: пустой proxy_url → запрос в Ollama на сервере */
 function getBuiltinLlmRuntimeConfig() {
-  if (getEffectiveBuiltinBackend() === "cloud") {
-    return getServerCloudLlmRuntimeConfig();
-  }
   return {};
 }
 
@@ -152,36 +130,18 @@ async function getOllamaHealth() {
 }
 
 function getLlmPublicStatus() {
-  const backend = getEffectiveBuiltinBackend();
-  if (backend === "cloud") {
-    const server = getServerCloudLlmRuntimeConfig();
-    return {
-      mode: "cloud",
-      builtin_mode: getBuiltinLlmMode(),
-      backend: "cloud",
-      ready: Boolean(server.proxy_url && server.api_key),
-      model: server.model || null,
-      provider: detectCloudProvider(server.proxy_url),
-      free: false,
-      user_install_required: false,
-      description:
-        "Встроенные модели Qwen на сервере Charitor (Chutes). Выберите модель ниже — ключ только на сервере.",
-    };
-  }
-
+  const defaultModel = getOllamaDefaultModel();
   return {
     mode: "ollama",
-    builtin_mode: getBuiltinLlmMode(),
-    backend: "ollama",
     ready: ollamaHealthCache.ready,
-    model: getOllamaDefaultModel(),
+    model: defaultModel,
     provider: "ollama",
     base_url: getOllamaBaseUrl(),
     free: true,
     user_install_required: false,
     description: ollamaHealthCache.ready
-      ? "Бесплатная Qwen через Ollama на сервере Charitor. Доступны только модели из Ollama (например qwen2.5:3b)."
-      : "Ollama на сервере недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b — или задайте BUILTIN_LLM_MODE=cloud и LLM_API_KEY.",
+      ? "Встроенная модель Qwen через Ollama на сервере Charitor. Пользователям на ПК ничего устанавливать не нужно."
+      : "Ollama на сервере недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b",
     ollama_error: ollamaHealthCache.ready ? null : ollamaHealthCache.error,
   };
 }
@@ -215,6 +175,26 @@ function applyModelOverrideToRuntimeConfig(runtimeConfig, modelOverride) {
   const model = String(modelOverride || "").trim();
   if (model) cfg.model = model;
   return cfg;
+}
+
+function isQwenModelId(modelId) {
+  return /qwen/i.test(String(modelId || "").trim());
+}
+
+function toModelListEntry(id) {
+  const value = String(id || "").trim();
+  return value ? { id: value, name: value } : null;
+}
+
+/** Только Qwen — для вкладки «Встроенная»; остальные модели — во вкладке «Прокси». */
+function filterBuiltinLlmModels(models) {
+  return (Array.isArray(models) ? models : [])
+    .map((item) => {
+      if (typeof item === "string") return toModelListEntry(item);
+      const id = String(item?.id || item?.name || "").trim();
+      return id ? { id, name: String(item?.name || id).trim() } : null;
+    })
+    .filter((item) => item && isQwenModelId(item.id));
 }
 
 const CHUTES_PROXY_URL = "https://llm.chutes.ai/v1/chat/completions";
@@ -306,99 +286,60 @@ async function fetchChutesProxyPresets() {
   }));
 }
 
-const BUILTIN_QWEN_MODELS_FALLBACK = [
-  "Qwen/Qwen3-32B-TEE",
-  "Qwen/Qwen3.5-397B-A17B-TEE",
-  "Qwen/Qwen3.6-27B-TEE",
-  "Qwen/Qwen2.5-Coder-32B-Instruct-TEE",
-  "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
-  "Qwen/Qwen3-235B-A22B-Thinking-2507",
+const BUILTIN_OLLAMA_QWEN_FALLBACK = [
+  "qwen2.5:3b",
+  "qwen2.5:1.5b",
+  "qwen2.5:7b",
 ];
 
-function isQwenModelId(modelId) {
-  return /qwen/i.test(String(modelId || "").trim());
+function isOllamaStyleModelId(modelId) {
+  const id = String(modelId || "").trim();
+  if (!id || id.includes("/")) return false;
+  return isQwenModelId(id);
 }
 
-function toModelListEntry(id) {
-  const value = String(id || "").trim();
-  return value ? { id: value, name: value } : null;
-}
-
-/** Только Qwen — для вкладки «Встроенная»; остальные модели — во вкладке «Прокси». */
-function filterBuiltinLlmModels(models) {
-  return (Array.isArray(models) ? models : [])
-    .map((item) => {
-      if (typeof item === "string") return toModelListEntry(item);
-      const id = String(item?.id || item?.name || "").trim();
-      return id ? { id, name: String(item?.name || id).trim() } : null;
-    })
-    .filter((item) => item && isQwenModelId(item.id));
-}
-
-function getBuiltinQwenFallbackModels() {
-  const defaultModel = String(
-    process.env.LLM_MODEL || getOllamaDefaultModel() || "",
+function getBuiltinOllamaFallbackModels() {
+  const defaultModel = getOllamaDefaultModel();
+  const fallbackModel = String(
+    process.env.OLLAMA_FALLBACK_MODEL || "qwen2.5:1.5b",
   ).trim();
-  const ids = [
-    ...(isQwenModelId(defaultModel) ? [defaultModel] : []),
-    ...BUILTIN_QWEN_MODELS_FALLBACK,
-  ];
-  const unique = [...new Set(ids.map((id) => String(id).trim()).filter(isQwenModelId))];
-  return unique.map(toModelListEntry).filter(Boolean);
+  const ids = [...new Set([defaultModel, fallbackModel, ...BUILTIN_OLLAMA_QWEN_FALLBACK])];
+  return ids
+    .filter(isOllamaStyleModelId)
+    .map(toModelListEntry)
+    .filter(Boolean);
 }
 
 async function fetchAvailableLlmModels() {
-  const backend = getEffectiveBuiltinBackend();
-  if (backend === "ollama") {
-    const health = await getOllamaHealth();
-    if (!health.ready) return [];
-    const qwen = filterBuiltinLlmModels(health.models || []);
+  const health = await getOllamaHealth();
+  if (health.ready) {
+    const qwen = filterBuiltinLlmModels(health.models || []).filter((item) =>
+      isOllamaStyleModelId(item.id),
+    );
     if (qwen.length) return qwen;
-    const def = getOllamaDefaultModel();
-    return isQwenModelId(def) ? [toModelListEntry(def)].filter(Boolean) : [];
   }
-  const qwen = filterBuiltinLlmModels(await fetchCloudLlmModels());
-  return qwen.length ? qwen : getBuiltinQwenFallbackModels();
+  return getBuiltinOllamaFallbackModels();
 }
 
-function sanitizeBuiltinModelOverride(modelOverride, runtimeConfig) {
+function sanitizeBuiltinModelOverride(modelOverride) {
   const model = String(modelOverride || "").trim();
-  if (!model) return "";
-  const useCloud = Boolean(String(runtimeConfig?.proxy_url || "").trim());
-  if (useCloud) return model;
-  if (model.includes("/")) return "";
-  return model;
+  if (!model || model.includes("/")) return "";
+  return isOllamaStyleModelId(model) ? model : "";
 }
 
 async function logLlmModeAtStartup() {
-  const mode = getBuiltinLlmMode();
-  if (mode === "cloud") {
-    const status = getLlmPublicStatus();
-    if (!status.ready) {
-      console.warn(
-        "LLM (встроенная=cloud): API задан, но ключ пустой. Добавьте LLM_API_KEY в .env",
-      );
-      console.warn(`     URL: ${process.env.LLM_PROXY_URL}`);
-      return;
-    }
-    console.log(
-      `LLM (встроенная=cloud): ${status.provider}, модель: ${status.model || "(LLM_MODEL)"}`,
-    );
-    return;
-  }
-
   await refreshOllamaHealth();
   const baseUrl = getOllamaBaseUrl();
   const model = getOllamaDefaultModel();
   if (ollamaHealthCache.ready) {
     const count = ollamaHealthCache.models.length;
     console.log(
-      `LLM (встроенная=ollama, бесплатно): ${baseUrl}, модель: ${model}${count ? `, в каталоге: ${count}` : ""}`,
+      `LLM (встроенная=Ollama Qwen): ${baseUrl}, модель: ${model}${count ? `, в каталоге: ${count}` : ""}`,
     );
-    console.log("     Пользователям Ollama на ПК не нужна — только на этом сервере.");
+    console.log("     Облачные API (Chutes и др.) — только через вкладку «Прокси» в чате.");
     return;
   }
-  console.warn(`LLM (встроенная=ollama): сервис недоступен (${baseUrl})`);
+  console.warn(`LLM (встроенная=Ollama): сервис недоступен (${baseUrl})`);
   console.warn(`     ${ollamaHealthCache.error || "запустите: ollama serve"}`);
   console.warn(`     затем: ollama pull ${model}`);
 }
@@ -406,7 +347,6 @@ async function logLlmModeAtStartup() {
 module.exports = {
   SECRETS_KEY_FILE,
   getBuiltinLlmMode,
-  getEffectiveBuiltinBackend,
   getBuiltinLlmRuntimeConfig,
   sanitizeBuiltinModelOverride,
   getServerLlmRuntimeConfig,

@@ -785,7 +785,7 @@ function resolveRuntimeConfig(bodyProxy, bodyLlmModel, bodyLlmSettings) {
         : fromBody;
   } else {
     const serverCfg = getBuiltinLlmRuntimeConfig();
-    const modelOverride = sanitizeBuiltinModelOverride(bodyLlmModel, serverCfg);
+    const modelOverride = sanitizeBuiltinModelOverride(bodyLlmModel);
     cfg = modelOverride
       ? applyModelOverrideToRuntimeConfig(serverCfg, modelOverride)
       : serverCfg;
@@ -802,19 +802,11 @@ function rejectIfBuiltinLlmNotReady(res, bodyProxy) {
   const status = getLlmPublicStatus();
   if (status.ready) return false;
 
-  if (status.mode === "cloud") {
-    res.status(503).json({
-      message:
-        "Встроенная облачная модель не настроена на сервере. Добавьте LLM_API_KEY в .env или выберите свой прокси в настройках чата.",
-    });
-    return true;
-  }
-
   res.status(503).json({
     message:
-      "Встроенная Qwen сейчас недоступна. Попробуйте позже или вкладку «Прокси» со своим API.",
+      "Встроенная Ollama (Qwen) сейчас недоступна. Запустите ollama serve на сервере или выберите вкладку «Прокси».",
     admin_hint:
-      "На сервере с сайтом: установите Ollama, выполните ollama serve и ollama pull qwen2.5:3b",
+      "На сервере: ollama serve и ollama pull qwen2.5:3b",
   });
   return true;
 }
@@ -891,13 +883,6 @@ app.get("/api/llm-models", async (req, res) => {
   try {
     await refreshOllamaHealth();
     const status = getLlmPublicStatus();
-    if (!status.ready) {
-      return res.json({
-        models: [],
-        default_model: status.model || null,
-        provider: status.provider || null,
-      });
-    }
     const models = await fetchAvailableLlmModels();
     res.json({
       models,

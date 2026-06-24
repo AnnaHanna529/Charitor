@@ -189,7 +189,7 @@
       <div class="api-settings-scroll">
         <div class="api-settings-panels">
           <section class="api-settings-panel active" data-api-panel="builtin" aria-labelledby="apiPanelBuiltinTitle">
-            <h3 id="apiPanelBuiltinTitle" class="api-panel-title">Встроенная (Qwen)</h3>
+            <h3 id="apiPanelBuiltinTitle" class="api-panel-title">Встроенная (Ollama · Qwen)</h3>
             <p class="api-panel-desc" id="builtinPanelDesc">Загрузка…</p>
             <button type="button" class="secondary-btn api-panel-action" id="useBuiltinModelBtn">Использовать встроенную</button>
             <div class="llm-models-section">
@@ -1650,31 +1650,17 @@
 
     function getBuiltinLlmLabel() {
       const model = getBuiltinEffectiveModel();
-      const shortModel = model
-        ? model.includes("/")
-          ? model.split("/").pop()
-          : model
-        : "";
-      if (serverLlmStatus.mode === "cloud") {
-        return shortModel ? `Qwen · ${shortModel}` : "Qwen";
-      }
-      return shortModel ? `бесплатно · ${shortModel}` : "бесплатно · Ollama";
+      return model ? `Ollama · ${model}` : "Ollama · Qwen";
     }
 
     function getBuiltinLlmDescription() {
       if (serverLlmStatus.description) {
         return serverLlmStatus.description;
       }
-      if (serverLlmStatus.mode === "cloud") {
-        if (!serverLlmStatus.ready) {
-          return "Облачная встроенная модель не настроена на сервере (LLM_API_KEY в .env).";
-        }
-        return "Встроенные модели Qwen на сервере Charitor — ключ только на сервере, пользователям ничего настраивать не нужно.";
-      }
       if (!serverLlmStatus.ready) {
         return "Ollama на сервере Charitor сейчас недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b";
       }
-      return "Бесплатная модель на сервере Charitor (Ollama). На вашем ПК ничего устанавливать не нужно.";
+      return "Встроенная модель семейства Qwen через Ollama на сервере. На вашем ПК ничего устанавливать не нужно.";
     }
 
     function getLlmModelPayloadField() {
@@ -1731,7 +1717,7 @@
         writeBuiltinSelectedModel(id);
         renderProxyConfigs();
         updateProxyButtonLabel();
-        showToast(`Встроенная модель: ${shortModelLabel(id)}`);
+        showToast(`Ollama: ${shortModelLabel(id)}`);
       }
       renderLlmModelsPicker();
     }
@@ -1749,19 +1735,33 @@
           throw new Error(data.message || "Не удалось загрузить модели");
         }
         const rawModels = Array.isArray(data.models) ? data.models : [];
-        llmModelsList = rawModels.filter((item) =>
-          /qwen/i.test(String(item?.id || item?.name || "")),
-        );
+        llmModelsList = rawModels.filter((item) => {
+          const id = String(item?.id || item?.name || "").trim();
+          return /qwen/i.test(id) && !id.includes("/");
+        });
         const defaultModel = String(data.default_model || "").trim();
+        if (builtinSelectedModel && builtinSelectedModel.includes("/")) {
+          writeBuiltinSelectedModel(
+            /qwen/i.test(defaultModel) && !defaultModel.includes("/")
+              ? defaultModel
+              : "qwen2.5:3b",
+          );
+        }
         if (
           builtinSelectedModel &&
           !/qwen/i.test(builtinSelectedModel)
         ) {
           writeBuiltinSelectedModel(
-            /qwen/i.test(defaultModel) ? defaultModel : "",
+            /qwen/i.test(defaultModel) && !defaultModel.includes("/")
+              ? defaultModel
+              : "",
           );
         }
-        if (!builtinSelectedModel && /qwen/i.test(defaultModel) && serverLlmStatus.ready) {
+        if (
+          !builtinSelectedModel &&
+          /qwen/i.test(defaultModel) &&
+          !defaultModel.includes("/")
+        ) {
           writeBuiltinSelectedModel(defaultModel);
         }
         if (
@@ -1772,17 +1772,17 @@
           )
         ) {
           writeBuiltinSelectedModel(
-            /qwen/i.test(defaultModel) ? defaultModel : "",
+            /qwen/i.test(defaultModel) && !defaultModel.includes("/")
+              ? defaultModel
+              : llmModelsList[0]?.id || "qwen2.5:3b",
           );
         }
         if (llmModelsHint) {
           llmModelsHint.textContent = llmModelsList.length
-            ? serverLlmStatus.mode === "ollama"
-              ? "Модели Ollama — нажмите, чтобы выбрать"
-              : "Модели Qwen (Chutes) — нажмите, чтобы выбрать"
-            : serverLlmStatus.mode === "ollama" && !serverLlmStatus.ready
-              ? "Ollama на сервере недоступна — администратор: ollama serve или BUILTIN_LLM_MODE=cloud"
-              : "Список Qwen недоступен — попробуйте позже или вкладку «Прокси»";
+            ? "Модели Qwen в Ollama — нажмите, чтобы выбрать"
+            : serverLlmStatus.ready
+              ? "В Ollama нет Qwen — выполните: ollama pull qwen2.5:3b"
+              : "Ollama на сервере недоступна — ollama serve и ollama pull qwen2.5:3b";
         }
       } catch (error) {
         llmModelsList = [];
@@ -1840,9 +1840,7 @@
       if (isUsingBuiltinLlm()) {
         if (!serverLlmStatus.ready) {
           throw new Error(
-            serverLlmStatus.mode === "cloud"
-              ? "Встроенная облачная модель не настроена на сервере"
-              : "Встроенная Qwen недоступна — попробуйте позже или вкладку «Прокси» со своим API",
+            "Встроенная Ollama (Qwen) недоступна — запустите ollama serve на сервере или вкладку «Прокси»",
           );
         }
         return;
@@ -1865,10 +1863,10 @@
         const data = await safeReadJson(response);
         if (response.ok && data && typeof data === "object") {
           serverLlmStatus = {
-            mode: data.mode === "cloud" ? "cloud" : "ollama",
+            mode: "ollama",
             ready: Boolean(data.ready),
             model: data.model || data.default_model || null,
-            provider: data.provider || null,
+            provider: data.provider || "ollama",
             free: Boolean(data.free),
             description: String(data.description || ""),
           };
@@ -1885,9 +1883,7 @@
       updateProxyButtonLabel();
       if (isUsingBuiltinLlm() && !serverLlmStatus.ready) {
         showToast(
-          serverLlmStatus.mode === "cloud"
-            ? "Встроенная облачная модель не настроена на сервере. Можно указать свой API в настройках."
-            : "Встроенная Qwen недоступна. Попробуйте позже или вкладку «Прокси» со своим API.",
+          "Встроенная Ollama (Qwen) недоступна. Запустите ollama serve или используйте вкладку «Прокси».",
         );
       }
     }
@@ -3916,7 +3912,7 @@
     }
     useBuiltinModelBtn.addEventListener("click", () => {
       useBuiltinLlm();
-      showToast(`Встроенная модель: ${getBuiltinLlmLabel()}`);
+      showToast(`Встроенная: ${getBuiltinLlmLabel()}`);
     });
     cancelProxyEditBtn.addEventListener("click", clearProxyForm);
 
