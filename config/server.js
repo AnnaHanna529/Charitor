@@ -803,10 +803,7 @@ function rejectIfBuiltinLlmNotReady(res, bodyProxy) {
   if (status.ready) return false;
 
   res.status(503).json({
-    message:
-      "Встроенная Ollama (Qwen) сейчас недоступна. Запустите ollama serve на сервере или выберите вкладку «Прокси».",
-    admin_hint:
-      "На сервере: ollama serve и ollama pull qwen2.5:3b",
+    message: "Встроенная модель временно недоступна. Выберите вкладку «Прокси» или попробуйте позже.",
   });
   return true;
 }

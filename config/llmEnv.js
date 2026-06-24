@@ -141,7 +141,7 @@ function getLlmPublicStatus() {
     user_install_required: false,
     description: ollamaHealthCache.ready
       ? "Встроенная модель Qwen через Ollama на сервере Charitor. Пользователям на ПК ничего устанавливать не нужно."
-      : "Ollama на сервере недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b",
+      : "",
     ollama_error: ollamaHealthCache.ready ? null : ollamaHealthCache.error,
   };
 }

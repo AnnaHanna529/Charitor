@@ -386,6 +386,7 @@ body {
 }
 
 .editable-box {
+  position: relative;
   min-height: 320px;
   max-height: 560px;
   overflow-y: auto;
@@ -426,10 +427,15 @@ body {
   );
 }
 
-.editable-box.is-empty::before {
+.editable-box.is-empty:not(:focus)::before {
   content: attr(data-placeholder);
+  position: absolute;
+  top: 13px;
+  left: 14px;
+  right: 14px;
   color: rgba(220, 220, 240, 0.44);
   pointer-events: none;
+  white-space: pre-wrap;
 }
 
 .editor-toolbar {

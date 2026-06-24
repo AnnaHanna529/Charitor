@@ -135,7 +135,7 @@
 
                   <div
                     id="characterBio"
-                    class="editable-box"
+                    class="editable-box is-empty"
                     contenteditable="true"
                     spellcheck="false"
                     data-placeholder="Опиши характер, прошлое, поведение, мотивацию, манеру речи, сильные/слабые стороны"
@@ -209,11 +209,11 @@
               </div>
 
               <div class="form-group">
-                <label for="characterScenario">Scenario</label>
+                <label for="characterScenario">Scenario — сценарий и сеттинг</label>
                 <textarea
                   id="characterScenario"
                   class="form-textarea large"
-                  placeholder="Сцена/сеттинг/исходная ситуация. Это показывается как сценарий."
+                  placeholder="Где и когда действие: место, обстановка, исходная ситуация перед началом диалога"
                 ></textarea>
               </div>
 
@@ -222,7 +222,7 @@
                 <textarea
                   id="roleplayRules"
                   class="form-textarea large"
-                  placeholder="Тон, манера речи, как персонаж взаимодействует, какие эмоции проявляет"
+                  placeholder="Тон и манера речи: как персонаж говорит, какие эмоции проявляет, как ведёт себя в диалоге"
                 ></textarea>
               </div>
 
@@ -782,6 +782,7 @@
 
             bioEditor.focus();
             document.execCommand(command, false, value);
+            syncBioPlaceholder();
           });
         });
 
@@ -795,11 +796,15 @@
 
         bioEditor.focus();
         document.execCommand("createLink", false, url);
+        syncBioPlaceholder();
       });
 
+      function getBioPlainText() {
+        return (bioEditor.textContent || bioEditor.innerText || "").replace(/\u00a0/g, " ").trim();
+      }
+
       function syncBioPlaceholder() {
-        const isEmpty = !bioEditor.innerText.trim();
-        bioEditor.classList.toggle("is-empty", isEmpty);
+        bioEditor.classList.toggle("is-empty", !getBioPlainText());
       }
 
       nameInput.addEventListener("input", () => {
@@ -830,6 +835,10 @@
       });
 
       bioEditor.addEventListener("input", syncBioPlaceholder);
+      bioEditor.addEventListener("keyup", syncBioPlaceholder);
+      bioEditor.addEventListener("paste", () => {
+        requestAnimationFrame(syncBioPlaceholder);
+      });
       bioEditor.addEventListener("blur", syncBioPlaceholder);
 
       imageInput.addEventListener("change", () => {
@@ -953,6 +962,7 @@
           nameInput.value = bot.name || "";
           descInput.value = bot.short_description || "";
           bioEditor.innerHTML = bot.full_description || "";
+          syncBioPlaceholder();
           visibilitySelect.value = bot.visibility === "private" ? "private" : "public";
 
           const promptMetadata = extractPromptMetadata(bot.system_prompt);

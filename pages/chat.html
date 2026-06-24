@@ -1658,7 +1658,7 @@
         return serverLlmStatus.description;
       }
       if (!serverLlmStatus.ready) {
-        return "Ollama на сервере Charitor сейчас недоступна. Администратору: ollama serve и ollama pull qwen2.5:3b";
+        return "";
       }
       return "Встроенная модель семейства Qwen через Ollama на сервере. На вашем ПК ничего устанавливать не нужно.";
     }
@@ -1781,8 +1781,8 @@
           llmModelsHint.textContent = llmModelsList.length
             ? "Модели Qwen в Ollama — нажмите, чтобы выбрать"
             : serverLlmStatus.ready
-              ? "В Ollama нет Qwen — выполните: ollama pull qwen2.5:3b"
-              : "Ollama на сервере недоступна — ollama serve и ollama pull qwen2.5:3b";
+              ? "В Ollama нет Qwen — выберите другую модель"
+              : "";
         }
       } catch (error) {
         llmModelsList = [];
@@ -1839,9 +1839,7 @@
     function validateLlmBeforeRequest() {
       if (isUsingBuiltinLlm()) {
         if (!serverLlmStatus.ready) {
-          throw new Error(
-            "Встроенная Ollama (Qwen) недоступна — запустите ollama serve на сервере или вкладку «Прокси»",
-          );
+          throw new Error("Встроенная модель временно недоступна");
         }
         return;
       }
@@ -1881,11 +1879,6 @@
       proxySettingsBtn.hidden = false;
       updateBuiltinPanelDesc();
       updateProxyButtonLabel();
-      if (isUsingBuiltinLlm() && !serverLlmStatus.ready) {
-        showToast(
-          "Встроенная Ollama (Qwen) недоступна. Запустите ollama serve или используйте вкладку «Прокси».",
-        );
-      }
     }
 
     function updateProxyButtonLabel() {
